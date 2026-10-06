@@ -42,6 +42,7 @@ class StickyAnalysisDefaultsCoordinator:
                 enabled=replica.enabled,
                 pair_count=replica.pair_count,
                 interval_mm=replica.interval_mm,
+                show_in_residual=replica.show_in_residual,
             ),
         )
 
@@ -72,12 +73,14 @@ class StickyAnalysisDefaultsCoordinator:
         enabled: bool,
         pair_count: int,
         interval_mm: float,
+        show_in_residual: bool,
     ) -> ReplicaAnalysisDefaults:
         """Normalize and persist Replica defaults from one explicit user action."""
         defaults = ReplicaAnalysisDefaults(
             enabled=enabled,
             pair_count=pair_count,
             interval_mm=interval_mm,
+            show_in_residual=show_in_residual,
         )
         self._settings_model.replace_domain("replica_analysis_defaults", defaults)
         self._notify_snapshot_changed()

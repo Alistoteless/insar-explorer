@@ -306,10 +306,12 @@ class ReplicaSettings:
     opacity: float = 0.8
     marker: str = "o"
     marker_size: float = REPLICA_MARKER_SIZE_DEFAULT
+    show_in_residual: bool = False
 
     def __post_init__(self):
         """Normalize every Replica field at the immutable domain boundary."""
         object.__setattr__(self, "enabled", bool(self.enabled))
+        object.__setattr__(self, "show_in_residual", bool(self.show_in_residual))
         object.__setattr__(self, "interval_mm", max(0.1, min(10000.0, float(self.interval_mm))))
         object.__setattr__(self, "pair_count", max(1, min(10, int(self.pair_count))))
         object.__setattr__(
@@ -363,9 +365,11 @@ class ReplicaAnalysisDefaults:
     enabled: bool = False
     pair_count: int = 1
     interval_mm: float = 27.8
+    show_in_residual: bool = False
 
     def __post_init__(self):
         object.__setattr__(self, "enabled", bool(self.enabled))
+        object.__setattr__(self, "show_in_residual", bool(self.show_in_residual))
         object.__setattr__(self, "pair_count", max(1, min(10, int(self.pair_count))))
         object.__setattr__(
             self, "interval_mm", max(0.1, min(10000.0, float(self.interval_mm)))
@@ -904,7 +908,11 @@ class TimeSeriesSettingsModel:
             "fit_defaults": self.fit_defaults.asParams(),
             "residual_defaults": self.residual_defaults.asParams(),
             "ensemble_defaults": self.ensemble_defaults.asParams(),
-            "replica_defaults": {"interval_mm": self.replica.interval_mm, "pair_count": self.replica.pair_count},
+            "replica_defaults": {
+                "interval_mm": self.replica.interval_mm,
+                "pair_count": self.replica.pair_count,
+                "show_in_residual": self.replica.show_in_residual,
+            },
             "fit_analysis_defaults": asdict(self.fit_analysis_defaults),
             "residual_plot": asdict(self.residual_plot),
             "replica_analysis_defaults": asdict(self.replica_analysis_defaults),

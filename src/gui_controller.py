@@ -277,6 +277,7 @@ class GuiController(QObject):
         self._replica_enabled_view = replica_defaults.enabled
         self._replica_interval_view = replica_defaults.interval_mm
         self._replica_pair_count_view = replica_defaults.pair_count
+        self._replica_show_in_residual_view = replica_defaults.show_in_residual
         self._analysis_defaults = StickyAnalysisDefaultsCoordinator(
             self.time_series_settings,
             plotter.user_preferences,
@@ -403,12 +404,23 @@ class GuiController(QObject):
             seasonal=state.seasonal_enabled,
         )
 
-    def _persistCurrentReplicaAnalysisDefaults(self):
-        """Persist normalized Replica state after an explicit user action only."""
+    def _persistCurrentReplicaAnalysisDefaults(self, *, include_residual_opt_in=False):
+        """Persist sticky Replica defaults without leaking a per-record residual opt-in.
+
+        Replica enablement/interval/pair count retain the established sticky behavior.
+        ``show_in_residual`` is intentionally per-record and only becomes a future-record
+        default through the explicit Replica default actions.
+        """
+        show_in_residual = (
+            self._replica_show_in_residual_view
+            if include_residual_opt_in
+            else self.time_series_settings.replica_analysis_defaults.show_in_residual
+        )
         return self._analysis_defaults.update_replica(
             enabled=self.time_series_replica_enabled,
             pair_count=self.time_series_replica_pair_count,
             interval_mm=self.time_series_replica_interval_mm,
+            show_in_residual=show_in_residual,
         )
 
     def initializeSelection(self):
@@ -1699,6 +1711,9 @@ class GuiController(QObject):
         self.appearance_popup.applyFactoryDefaultRequested.connect(self.applyFactoryAppearanceDefaults)
         self.appearance_popup.saveCurrentAsDefaultRequested.connect(self.setCurrentAppearanceAsDefault)
         self.replica_popup.settingsChanged.connect(self.updateReplicaCoreSettings)
+        self.replica_popup.showInResidualChanged.connect(
+            self.setReplicaShowInResidual
+        )
         self.replica_popup.applySavedDefaultRequested.connect(self.restoreReplicaDefaults)
         self.replica_popup.applyFactoryDefaultRequested.connect(self.applyFactoryReplicaDefaults)
         self.replica_popup.saveCurrentAsDefaultRequested.connect(self.setCurrentReplicaAsDefault)
@@ -2352,6 +2367,7 @@ class GuiController(QObject):
                 state.seasonal_enabled,
             )
             self._refreshFitPopupAvailability()
+        self._refreshReplicaPopupAvailability()
 
     def _syncActiveAnalysisControls(self, record):
         """Project active-record analysis and presentation into controls without edits."""
@@ -2370,6 +2386,7 @@ class GuiController(QObject):
         self._replica_enabled_view = replica.enabled
         self._replica_interval_view = replica.interval_mm
         self._replica_pair_count_view = replica.pair_count
+        self._replica_show_in_residual_view = replica.show_in_residual
         self._syncTimeSeriesFitControls()
         self._syncTimeSeriesReplicaControls()
 
@@ -4301,6 +4318,9 @@ class GuiController(QObject):
             self.replica_popup.setReplicaStyleAvailable(
                 self._replicaStyleAvailable()
             )
+            self.replica_popup.setShowInResidualAvailable(
+                bool(self._replicaStyleAvailable() and self.time_series_fit_state.fit_enabled)
+            )
 
     def _activeReplicaSettingsSnapshot(self):
         """Combine active record calculation and visual state for popup projection."""
@@ -4314,6 +4334,7 @@ class GuiController(QObject):
             pair_count=self.time_series_replica_pair_count,
             color_1=visual.color_1, color_2=visual.color_2,
             opacity=visual.opacity, marker=visual.marker, marker_size=visual.marker_size,
+            show_in_residual=self._replica_show_in_residual_view,
         )
 
     def syncReplicaPopup(self):
@@ -4366,11 +4387,13 @@ class GuiController(QObject):
             defaults, color_1=applied.color_1, color_2=applied.color_2,
             opacity=applied.opacity, marker=applied.marker,
             marker_size=applied.marker_size,
+            show_in_residual=applied.show_in_residual,
         )
         self.time_series_settings.replace_domain("replica", presentation)
         self.time_series_replica_enabled = applied.enabled
         self.time_series_replica_interval_mm = applied.interval_mm
         self.time_series_replica_pair_count = applied.pair_count
+        self._replica_show_in_residual_view = bool(applied.show_in_residual)
         self._syncTimeSeriesReplicaControls()
         return applied
 
@@ -4386,6 +4409,7 @@ class GuiController(QObject):
         replica_config = ReplicaConfiguration(
             enabled=applied.enabled, interval_mm=applied.interval_mm,
             pair_count=applied.pair_count,
+            show_in_residual=applied.show_in_residual,
         )
         replica_style = ReplicaStyleSettings(
             color_1=applied.color_1, color_2=applied.color_2,
@@ -4409,6 +4433,7 @@ class GuiController(QObject):
             enabled=self.time_series_replica_enabled, interval_mm=interval_mm, pair_count=pair_count,
             color_1=color_1, color_2=color_2, opacity=opacity,
             marker=marker, marker_size=marker_size,
+            show_in_residual=self._replica_show_in_residual_view,
         )
         self._applyReplicaSettingsSnapshot(replica, refresh_graphics=True)
         self._persistCurrentReplicaAnalysisDefaults()
@@ -4418,7 +4443,7 @@ class GuiController(QObject):
         applied = replace(settings, enabled=self.time_series_replica_enabled)
         self.time_series_settings.replace_domain("replica", settings)
         self._applyReplicaSettingsSnapshot(applied, refresh_graphics=True)
-        self._persistCurrentReplicaAnalysisDefaults()
+        self._persistCurrentReplicaAnalysisDefaults(include_residual_opt_in=True)
 
     def restoreReplicaDefaults(self):
         """Apply persisted Replica defaults when an applicable target exists."""
@@ -4438,12 +4463,14 @@ class GuiController(QObject):
             presentation, enabled=self.time_series_replica_enabled,
             interval_mm=self.time_series_replica_interval_mm,
             pair_count=self.time_series_replica_pair_count,
+            show_in_residual=self._replica_show_in_residual_view,
         )
         self.time_series_settings.replace_domain("replica", current)
         if self._saveUserPreferences(
             lambda: self.choose_point_click_handler.plot_ts.user_preferences.save_replica_defaults(current),
             "Current replica settings saved as default.",
         ):
+            self._persistCurrentReplicaAnalysisDefaults(include_residual_opt_in=True)
             self.settings.setValue("insar_explorer/replica_interval_mm", current.interval_mm)
 
     def applyFactoryReplicaDefaults(self):
@@ -4459,7 +4486,8 @@ class GuiController(QObject):
         self.choose_point_click_handler.plot_ts.settings_model.replace_domain(
             "replica", replace(reloaded.replica_defaults,
                                enabled=self.time_series_replica_enabled,
-                               interval_mm=self.time_series_replica_interval_mm)
+                               interval_mm=self.time_series_replica_interval_mm,
+                               show_in_residual=self._replica_show_in_residual_view)
         )
         self.time_series_replica_pair_count = self.time_series_settings.replica.pair_count
         self._syncTimeSeriesReplicaControls()
@@ -4472,6 +4500,7 @@ class GuiController(QObject):
             enabled=defaults.enabled,
             interval_mm=defaults.interval_mm,
             pair_count=defaults.pair_count,
+            show_in_residual=defaults.show_in_residual,
         )
         self._projectReplicaSettingsSnapshot(replica)
 
@@ -4517,6 +4546,7 @@ class GuiController(QObject):
             enabled=self.time_series_replica_enabled,
             interval_mm=self.time_series_replica_interval_mm,
             pair_count=self.time_series_replica_pair_count,
+            show_in_residual=self._replica_show_in_residual_view,
         )
         self._applyReplicaSettingsSnapshot(
             replica, apply_to_active_record=True, refresh_graphics=refresh
@@ -4556,6 +4586,23 @@ class GuiController(QObject):
             applied,
             apply_to_active_record=True,
             refresh_graphics=self.time_series_replica_enabled,
+        )
+        self._persistCurrentReplicaAnalysisDefaults()
+
+    def setReplicaShowInResidual(self, enabled):
+        """Toggle residual-subplot Replica rendering for the active series only."""
+        self._replica_show_in_residual_view = bool(enabled)
+        replica = replace(
+            self.time_series_settings.replica,
+            enabled=self.time_series_replica_enabled,
+            interval_mm=self.time_series_replica_interval_mm,
+            pair_count=self.time_series_replica_pair_count,
+            show_in_residual=self._replica_show_in_residual_view,
+        )
+        self._applyReplicaSettingsSnapshot(
+            replica,
+            apply_to_active_record=True,
+            refresh_graphics=True,
         )
         self._persistCurrentReplicaAnalysisDefaults()
 

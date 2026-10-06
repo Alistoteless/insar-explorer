@@ -181,6 +181,12 @@ class ReplicaConfiguration:
     enabled: bool = False
     interval_mm: float = 0.0
     pair_count: int = 0
+    show_in_residual: bool = False
+
+    def __post_init__(self) -> None:
+        """Normalize Boolean Replica feature flags at the record boundary."""
+        object.__setattr__(self, "enabled", bool(self.enabled))
+        object.__setattr__(self, "show_in_residual", bool(self.show_in_residual))
 
 
 @dataclass(frozen=True)
@@ -355,6 +361,8 @@ class TimeSeriesGraphics:
     plot_multiple_lines: List[Any] = field(default_factory=list)
     replicate_up: List[Any] = field(default_factory=list)
     replicate_dn: List[Any] = field(default_factory=list)
+    residual_replicate_up: List[Any] = field(default_factory=list)
+    residual_replicate_dn: List[Any] = field(default_factory=list)
     fit_plot: Any = None
     residual_scatter: Any = None
     residual_line: Any = None

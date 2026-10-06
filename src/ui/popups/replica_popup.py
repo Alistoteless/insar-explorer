@@ -2,7 +2,7 @@
 
 from qgis.PyQt.QtCore import pyqtSignal
 from qgis.PyQt.QtWidgets import (
-    QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
+    QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
     QLabel, QSpinBox, QTabWidget, QVBoxLayout, QWidget,
 )
 
@@ -22,6 +22,7 @@ class ReplicaPopup(QWidget):
     """Edit global Replica settings and appearance without Apply/Cancel controls."""
 
     settingsChanged = pyqtSignal(float, int, str, str, float, str, float)
+    showInResidualChanged = pyqtSignal(bool)
     applySavedDefaultRequested = pyqtSignal()
     saveCurrentAsDefaultRequested = pyqtSignal()
     applyFactoryDefaultRequested = pyqtSignal()
@@ -143,6 +144,16 @@ class ReplicaPopup(QWidget):
         appearance_form.addRow("Marker size", self.marker_size_spin)
         content_layout.addWidget(appearance_group)
 
+        self.show_in_residual_checkbox = QCheckBox(
+            "Show in residual plot", self.style_content
+        )
+        self.show_in_residual_checkbox.setObjectName("check_replica_show_in_residual")
+        self.show_in_residual_checkbox.setToolTip(
+            "Show this Replica in the residual plot when residuals are displayed."
+        )
+        self.show_in_residual_checkbox.setAccessibleName("Show Replica in residual plot")
+        content_layout.addWidget(self.show_in_residual_checkbox)
+
         actions = QHBoxLayout()
         actions.addStretch(1)
         self.defaults_button = createDefaultsMenu(
@@ -166,6 +177,7 @@ class ReplicaPopup(QWidget):
         self.opacity_spin.valueChanged.connect(self._emitSettings)
         self.marker_combo.currentIndexChanged.connect(self._emitSettings)
         self.marker_size_spin.valueChanged.connect(self._emitSettings)
+        self.show_in_residual_checkbox.toggled.connect(self.showInResidualChanged.emit)
 
     def _setTabOrder(self):
         """Preserve logical keyboard navigation within and across both domains."""
@@ -176,11 +188,16 @@ class ReplicaPopup(QWidget):
         QWidget.setTabOrder(self.color_2_button, self.opacity_spin)
         QWidget.setTabOrder(self.opacity_spin, self.marker_combo)
         QWidget.setTabOrder(self.marker_combo, self.marker_size_spin)
-        QWidget.setTabOrder(self.marker_size_spin, self.defaults_button)
+        QWidget.setTabOrder(self.marker_size_spin, self.show_in_residual_checkbox)
+        QWidget.setTabOrder(self.show_in_residual_checkbox, self.defaults_button)
 
     def setReplicaStyleAvailable(self, available):
         """Enable or disable Style contents while keeping the tab discoverable."""
         self.style_content.setEnabled(bool(available))
+
+    def setShowInResidualAvailable(self, available):
+        """Enable the residual-Replica option only when Replica and Fit are usable."""
+        self.show_in_residual_checkbox.setEnabled(bool(available))
 
     def _setPresetForInterval(self, interval_mm):
         """Synchronize the preset view from the authoritative numeric interval."""
@@ -224,6 +241,7 @@ class ReplicaPopup(QWidget):
             self.preset_combo, self.interval_spin,
             self.pair_count_spin, self.color_1_button, self.color_2_button,
             self.opacity_spin, self.marker_combo, self.marker_size_spin,
+            self.show_in_residual_checkbox,
         )
         previous = [control.blockSignals(True) for control in controls]
         try:
@@ -237,6 +255,7 @@ class ReplicaPopup(QWidget):
             index = self.marker_combo.findData(settings.marker)
             self.marker_combo.setCurrentIndex(max(0, index))
             self.marker_size_spin.setValue(settings.marker_size)
+            self.show_in_residual_checkbox.setChecked(bool(settings.show_in_residual))
         finally:
             for control, blocked in zip(controls, previous):
                 control.blockSignals(blocked)

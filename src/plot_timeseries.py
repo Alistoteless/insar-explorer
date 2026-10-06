@@ -22,6 +22,7 @@ from .time_series.y_axis_range import resolve_manual_y_range
 from .time_series.hover import (
     HoverObservation, format_hover_text, select_nearest_hover_observation,
 )
+from .time_series.replica_schema import residual_replica_value_pairs
 from .time_series.settings.persistence import build_legacy_plot_params
 from .time_series.persistence import NullProjectStateRepository
 from .qt_compat import NO_MOUSE_BUTTON, PALETTE_WINDOW_TEXT
@@ -745,6 +746,7 @@ class PlotTs():
             enabled=replica_defaults.enabled,
             interval_mm=replica_defaults.interval_mm,
             pair_count=self._validateReplicaPairCount(replica_defaults.pair_count),
+            show_in_residual=replica_defaults.show_in_residual,
         )
         return TimeSeriesAnalysis(fit=fit, replica=replica)
 
@@ -1537,6 +1539,7 @@ class PlotTs():
         for group in (
             graphics.plot_multiple_fill, graphics.plot_multiple_lines,
             graphics.replicate_up, graphics.replicate_dn,
+            graphics.residual_replicate_up, graphics.residual_replicate_dn,
         ):
             for item in group or ():
                 if item is not None:
@@ -1704,7 +1707,9 @@ class PlotTs():
         items.main_y_data = main_y_data
         self.decoratePlot(parms=self.parms.get("time series plot", {}))
         items.fit_plot, residuals_values = self.fitModel(
-            series, presentation, analysis.fit, items, report_statistics=report_statistics,
+            series, presentation, analysis.fit, items,
+            replica_config=analysis.replica,
+            report_statistics=report_statistics,
             transaction=transaction, main_view=main_view,
         )
 
@@ -1769,7 +1774,7 @@ class PlotTs():
 
     def fitModel(
         self, series: TimeSeriesData, presentation: TimeSeriesPresentation,
-        fit_config: FitConfiguration, graphics=None, *,
+        fit_config: FitConfiguration, graphics=None, *, replica_config=None,
         report_statistics=False, transaction=None, main_view=None,
     ):
         if series.plot_values is None:
@@ -1826,11 +1831,84 @@ class PlotTs():
         self.plotResiduals(
             series, presentation, fit_config, graphics, residuals_values, transaction=transaction
         )
+        if replica_config is not None:
+            self.plotResidualReplicas(
+                series,
+                residuals_values,
+                presentation.replica,
+                replica_config,
+                graphics,
+                y_axis_side=presentation.y_axis_side,
+                transaction=transaction,
+            )
         if report_statistics and self.fit_success_callback is not None:
             self.fit_success_callback(
                 fit_model, statistics, seasonal=fit_seasonal
             )
         return fit_plot, residuals_values
+
+    def _residualReplicaValues(self, residuals_values, replica_config):
+        """Return residual-domain Replica pairs using the canonical residual sign.
+
+        Main Replica values are the observed series shifted by ± the Replica
+        interval.  Since canonical residuals are ``observed - fitted``, their
+        residual-domain counterparts are exactly ``residual ± interval``.
+        """
+        if replica_config is None:
+            return []
+        return residual_replica_value_pairs(
+            residuals_values,
+            replica_config.interval_mm,
+            self._validateReplicaPairCount(replica_config.pair_count),
+        )
+
+    def plotResidualReplicas(
+        self, series, residuals_values, replica_style, replica_config,
+        items, *, y_axis_side="left", transaction=None,
+    ):
+        """Render one record's Replica in residual coordinates when opted in."""
+        if not (
+            replica_config.enabled
+            and replica_config.show_in_residual
+            and self.ax_residuals is not None
+            and residuals_values is not None
+        ):
+            return
+        residual_view = self._viewBoxForSide(y_axis_side, residual=True)
+        if residual_view is None:
+            return
+        x = self._datesToX(series.dates)
+        pairs = self._residualReplicaValues(residuals_values, replica_config)
+        up_items = []
+        down_items = []
+        for index, (up_values, down_values) in enumerate(pairs):
+            up_color = replica_style.color_1 if index % 2 == 0 else replica_style.color_2
+            down_color = replica_style.color_2 if index % 2 == 0 else replica_style.color_1
+            up_item = pg.ScatterPlotItem(
+                x=x,
+                y=up_values,
+                symbol=self._symbol(replica_style.marker),
+                size=replica_style.marker_size,
+                pen=None,
+                brush=self._brush(up_color, replica_style.opacity),
+                antialias=_INTERACTIVE_ANTIALIAS,
+            )
+            down_item = pg.ScatterPlotItem(
+                x=x,
+                y=down_values,
+                symbol=self._symbol(replica_style.marker),
+                size=replica_style.marker_size,
+                pen=None,
+                brush=self._brush(down_color, replica_style.opacity),
+                antialias=_INTERACTIVE_ANTIALIAS,
+            )
+            transaction.add_item(residual_view, up_item)
+            transaction.add_item(residual_view, down_item)
+            up_items.append(up_item)
+            down_items.append(down_item)
+            items.residual_y_data.extend((up_values, down_values))
+        items.residual_replicate_up = up_items
+        items.residual_replicate_dn = down_items
 
     def _normalizedResidualStyle(self, presentation: TimeSeriesPresentation):
         """Return effective residual appearance resolved from record-owned styles."""
@@ -3031,6 +3109,20 @@ class PlotTs():
                     values.append(base - offset)
         return values
 
+    def _recordAutomaticResidualYValues(self, record):
+        """Return visible record values contributing to automatic residual Y limits."""
+        if record is None or not record.analysis.fit.enabled:
+            return []
+        residuals = record.data.residuals_values
+        if residuals is None:
+            return []
+        values = [residuals]
+        replica = record.analysis.replica
+        if replica.enabled and replica.show_in_residual:
+            for up_values, down_values in self._residualReplicaValues(residuals, replica):
+                values.extend((up_values, down_values))
+        return values
+
     def _rebuildYDataRanges(self):
         """Rebuild canonical Y extents directly into semantic domain keys."""
         self._y_data_ranges = {}
@@ -3046,11 +3138,9 @@ class PlotTs():
             main_domain = "right_series" if side == "right" else "series"
             residual_domain = "right_residual" if side == "right" else "residual"
             values[main_domain].extend(self._recordAutomaticMainYValues(record))
-            if (
-                data.residuals_values is not None
-                and record.analysis.fit.enabled
-            ):
-                values[residual_domain].append(data.residuals_values)
+            values[residual_domain].extend(
+                self._recordAutomaticResidualYValues(record)
+            )
 
         for domain, arrays in values.items():
             data_range = self._finiteRange(arrays)
