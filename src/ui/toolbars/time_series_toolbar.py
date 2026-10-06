@@ -282,7 +282,7 @@ class TimeSeriesToolbar(QToolBar):
         self.residual_plot_button = QToolButton(self)
         self.residual_plot_button.setObjectName("tool_ts_residual_plot")
         set_toolbar_control_role(self.residual_plot_button, "toggle")
-        self.residual_plot_button.setIcon(themed_icon("residual"))
+        self.residual_plot_button.setIcon(themed_icon("plot_split"))
         self.residual_plot_button.setIconSize(self.iconSize())
         self.residual_plot_button.setCheckable(True)
         self.residual_plot_button.setToolButtonStyle(TOOL_BUTTON_ICON_ONLY)

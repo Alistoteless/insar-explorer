@@ -34,6 +34,7 @@
     <file alias="legend.svg">icons/light/legend.svg</file>
     <file alias="plot_random_color.svg">icons/light/plot_random_color.svg</file>
     <file alias="plot_settings.svg">icons/light/plot_settings.svg</file>
+    <file alias="plot_split.svg">icons/light/plot_split.svg</file>
     <file alias="polygon_reference_selection.svg">icons/light/polygon_reference_selection.svg</file>
     <file alias="polygon_selection.svg">icons/light/polygon_selection.svg</file>
     <file alias="rename.svg">icons/light/rename.svg</file>
@@ -87,6 +88,7 @@
     <file alias="legend.svg">icons/dark/legend.svg</file>
     <file alias="plot_random_color.svg">icons/dark/plot_random_color.svg</file>
     <file alias="plot_settings.svg">icons/dark/plot_settings.svg</file>
+    <file alias="plot_split.svg">icons/dark/plot_split.svg</file>
     <file alias="polygon_reference_selection.svg">icons/dark/polygon_reference_selection.svg</file>
     <file alias="polygon_selection.svg">icons/dark/polygon_selection.svg</file>
     <file alias="rename.svg">icons/dark/rename.svg</file>
