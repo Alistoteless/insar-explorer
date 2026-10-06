@@ -36,7 +36,7 @@ def build_legacy_plot_params(model, existing=None):
     })
     params.setdefault("model fit", {}).update(model.fit_current.asParams())
     residual = params.setdefault("residual plot", {})
-    residual.update(model.residual_current.asParams())
+    residual.update(model.residual_defaults.asParams())
     residual.update({
         "title": model.appearance.residual_title,
         "xlabel": model.appearance.residual_x_label,

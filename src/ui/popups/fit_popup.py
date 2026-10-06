@@ -52,6 +52,7 @@ class FitPopup(QWidget):
     residualLineColorChanged = pyqtSignal(str)
     residualLineWidthChanged = pyqtSignal(float)
     residualLineOpacityChanged = pyqtSignal(int)
+    residualMatchSeriesStyleChanged = pyqtSignal(bool)
     applySavedFitDefaultRequested = pyqtSignal()
     saveCurrentFitAsDefaultRequested = pyqtSignal()
     applyFactoryFitDefaultRequested = pyqtSignal()
@@ -65,6 +66,7 @@ class FitPopup(QWidget):
         super().__init__(parent, POPUP_WINDOW_FLAG)
         self.setObjectName("popup_ts_fit")
         self._loading = False
+        self._residual_style_available = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(SPACE_LG, SPACE_LG, SPACE_LG, SPACE_LG)
@@ -219,11 +221,32 @@ class FitPopup(QWidget):
         content_layout.setSpacing(SPACE_MD)
         layout.addWidget(self.residual_style_content)
 
+        self.residual_match_series_style = QCheckBox(
+            "Match time-series style", self.residual_style_content
+        )
+        self.residual_match_series_style.setObjectName(
+            "check_ts_residual_match_series_style"
+        )
+        self.residual_match_series_style.setToolTip(
+            "Use the time-series marker and line appearance for its residuals."
+        )
+        self.residual_match_series_style.setAccessibleName(
+            "Match time-series style"
+        )
+        self.residual_match_series_style.setChecked(True)
+        content_layout.addWidget(self.residual_match_series_style)
+
+        self.residual_editor_content = QWidget(self.residual_style_content)
+        editor_layout = QVBoxLayout(self.residual_editor_content)
+        editor_layout.setContentsMargins(0, 0, 0, 0)
+        editor_layout.setSpacing(SPACE_MD)
+        content_layout.addWidget(self.residual_editor_content)
+
         groups = QHBoxLayout()
         groups.setContentsMargins(0, 0, 0, 0)
         groups.setSpacing(SPACE_LG)
 
-        self.residual_marker_group = QGroupBox("Marker", self.residual_style_content)
+        self.residual_marker_group = QGroupBox("Marker", self.residual_editor_content)
         self.residual_marker_group.setSizePolicy(
             SIZE_POLICY_MAXIMUM, SIZE_POLICY_PREFERRED
         )
@@ -245,7 +268,7 @@ class FitPopup(QWidget):
         marker_form.addRow("Color", self.residual_marker_color)
         marker_form.addRow("Opacity", self.residual_marker_opacity)
 
-        self.residual_line_group = QGroupBox("Line", self.residual_style_content)
+        self.residual_line_group = QGroupBox("Line", self.residual_editor_content)
         self.residual_line_group.setSizePolicy(
             SIZE_POLICY_MAXIMUM, SIZE_POLICY_PREFERRED
         )
@@ -269,7 +292,9 @@ class FitPopup(QWidget):
         groups.addWidget(self.residual_marker_group)
         groups.addWidget(self.residual_line_group)
         groups.addStretch(1)
-        content_layout.addLayout(groups)
+        editor_layout.addLayout(groups)
+
+        editor_layout.addStretch(1)
 
         actions = QHBoxLayout()
         actions.setContentsMargins(0, 0, 0, 0)
@@ -297,6 +322,9 @@ class FitPopup(QWidget):
         content_layout.addLayout(actions)
         content_layout.addStretch(1)
 
+        self.residual_match_series_style.toggled.connect(
+            self._onResidualMatchSeriesStyleToggled
+        )
         self.residual_marker_type.currentTextChanged.connect(
             lambda value: None if self._loading
             else self.residualMarkerTypeChanged.emit(value)
@@ -342,8 +370,24 @@ class FitPopup(QWidget):
         self.fit_style_content.setEnabled(bool(available))
 
     def setResidualStyleAvailable(self, available):
-        """Toggle Residual appearance contents while keeping its tab selectable."""
-        self.residual_style_content.setEnabled(bool(available))
+        """Toggle Residual style availability from Fit while preserving match control semantics."""
+        self._residual_style_available = bool(available)
+        self._syncResidualEditorEnabled()
+
+    def _syncResidualEditorEnabled(self):
+        """Separate custom-editor availability from always-accessible default actions."""
+        available = bool(self._residual_style_available)
+        custom_enabled = available and not self.residual_match_series_style.isChecked()
+        self.residual_match_series_style.setEnabled(available)
+        self.residual_editor_content.setEnabled(custom_enabled)
+        self.residual_randomize_button.setEnabled(custom_enabled)
+        self.residual_default_button.setEnabled(available)
+
+    def _onResidualMatchSeriesStyleToggled(self, enabled):
+        """Update local editor availability and emit one semantic user change."""
+        self._syncResidualEditorEnabled()
+        if not self._loading:
+            self.residualMatchSeriesStyleChanged.emit(bool(enabled))
 
     @staticmethod
     def _setCompactEditorWidths(*editors):
@@ -391,6 +435,7 @@ class FitPopup(QWidget):
         """Synchronize the residual style without emitting writes."""
         self._loading = True
         try:
+            self.residual_match_series_style.setChecked(bool(style.match_series_style))
             self.residual_marker_type.setCurrentText(style.marker)
             self.residual_marker_color.setColor(style.marker_color)
             self.residual_marker_size.setValue(float(style.marker_size))
@@ -401,3 +446,4 @@ class FitPopup(QWidget):
             self.residual_line_opacity.setValue(alpha_to_percent(style.line_alpha))
         finally:
             self._loading = False
+        self._syncResidualEditorEnabled()

@@ -94,8 +94,10 @@ class FitStyleSettings:
 
 @dataclass(frozen=True)
 class ResidualStyleSettings:
-    """Persistent defaults for residual series."""
+    """Persistent residual appearance and its relationship to the source series."""
 
+    match_series_style: bool = True
+    custom_style_initialized: bool = False
     marker: str = "o"
     marker_color: str = RESIDUAL_DEFAULT_COLOR
     marker_edge_color: str = "black"
@@ -110,7 +112,19 @@ class ResidualStyleSettings:
     def fromParams(cls, params):
         """Build normalized residual defaults from compatibility parameters."""
         values = params.get("residual plot", {}) if isinstance(params, dict) else {}
+        match_value = values.get("match series style", True)
+        if isinstance(match_value, str):
+            match_value = match_value.strip().lower() not in {"false", "0", "no", "off", ""}
+        initialized_value = values.get("custom style initialized", None)
+        if initialized_value is None:
+            initialized_value = not bool(match_value)
+        elif isinstance(initialized_value, str):
+            initialized_value = initialized_value.strip().lower() not in {
+                "false", "0", "no", "off", ""
+            }
         return cls(
+            match_series_style=bool(match_value),
+            custom_style_initialized=bool(initialized_value),
             marker=normalize_residual_marker(values.get("marker"), "o"),
             marker_color=normalize_color(values.get("marker color"), RESIDUAL_DEFAULT_COLOR),
             marker_edge_color=normalize_color(values.get("marker edge color"), "black"),
@@ -127,11 +141,55 @@ class ResidualStyleSettings:
 
     def asParams(self):
         """Return values using compatibility residual-plot keys."""
-        return {"marker": self.marker, "marker color": self.marker_color,
+        return {"match series style": self.match_series_style,
+                "custom style initialized": self.custom_style_initialized,
+                "marker": self.marker, "marker color": self.marker_color,
                 "marker edge color": self.marker_edge_color,
                 "marker size": self.marker_size, "marker alpha": self.marker_alpha,
                 "line style": self.line_style, "line color": self.line_color,
                 "line width": self.line_width, "line alpha": self.line_alpha}
+
+    def resolve_for_series(self, series_style: SeriesStyleSettings):
+        """Return the effective residual appearance for the given source-series style.
+
+        Matching is a live rendering relationship. Stored custom residual values are
+        retained unchanged while the effective marker/line fields are derived from
+        the source series.
+        """
+        if not self.match_series_style:
+            return self
+        return replace(
+            self,
+            marker=normalize_residual_marker(series_style.marker, self.marker),
+            marker_color=normalize_color(series_style.marker_color, self.marker_color),
+            marker_edge_color=normalize_color(
+                series_style.marker_edge_color, self.marker_edge_color
+            ),
+            marker_size=normalize_number(
+                series_style.marker_size, RESIDUAL_MARKER_SIZE_RANGE, self.marker_size
+            ),
+            marker_alpha=normalize_alpha(series_style.marker_opacity, self.marker_alpha),
+            line_style=normalize_residual_line_style(series_style.line_style, self.line_style),
+            line_color=normalize_color(series_style.line_color, self.line_color),
+            line_width=normalize_number(
+                series_style.line_width, RESIDUAL_LINE_WIDTH_RANGE, self.line_width
+            ),
+            line_alpha=normalize_alpha(series_style.line_opacity, self.line_alpha),
+        )
+
+    def seed_custom_from_series(
+        self, series_style: SeriesStyleSettings
+    ) -> "ResidualStyleSettings":
+        """Initialize independent residual styling from the current source appearance.
+
+        This is a one-time presentation-state transition used when a matched residual
+        is first unlinked. It deliberately reuses the effective-style resolver so the
+        series-to-residual field mapping has one typed implementation.
+        """
+        effective = replace(self, match_series_style=True).resolve_for_series(series_style)
+        return replace(
+            effective, match_series_style=False, custom_style_initialized=True
+        )
 
 
 @dataclass(frozen=True)

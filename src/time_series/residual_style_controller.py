@@ -16,6 +16,7 @@ RESIDUAL_STYLE_KEYS = (
     "marker", "marker color", "marker edge color", "marker size", "marker alpha",
     "line style", "line color", "line width", "line alpha",
 )
+RESIDUAL_MODE_KEYS = ("match series style", "custom style initialized")
 
 
 def _with_residual_style(snapshot, params):
@@ -82,10 +83,45 @@ class ResidualStyleController:
     }
 
     def residualStyle(self, snapshot: TimeSeriesSnapshot):
-        return ResidualStyle.fromParams(snapshot.style.params)
+        """Return the record-owned typed residual style without compatibility loss."""
+        return snapshot.presentation.residual
+
+    def residualStyleForDisplay(self, snapshot: TimeSeriesSnapshot):
+        """Return the residual style that the popup should preview for this record.
+
+        Matched residuals expose their effective source-series-derived appearance while
+        leaving the record-owned dormant custom residual fields untouched. Independent
+        residuals expose their stored custom appearance directly.
+        """
+        residual = snapshot.presentation.residual
+        if residual.match_series_style:
+            return residual.resolve_for_series(snapshot.presentation.series)
+        return residual
+
+    def applyMatchSeriesStyle(
+        self, snapshots: Iterable[TimeSeriesSnapshot], enabled: bool
+    ):
+        """Toggle matching, seeding custom style exactly once on first unlink."""
+        changed = []
+        for snapshot in snapshots:
+            residual = snapshot.presentation.residual
+            if not enabled and not residual.custom_style_initialized:
+                residual = residual.seed_custom_from_series(snapshot.presentation.series)
+            else:
+                residual = replace(residual, match_series_style=bool(enabled))
+            changed.append(replace(
+                snapshot, presentation=replace(snapshot.presentation, residual=residual)
+            ))
+        return changed
 
     def applyProperty(self, snapshots: Iterable[TimeSeriesSnapshot], property_name, value):
-        return self.applyValues(snapshots, {self.STYLE_KEYS[property_name]: value})
+        return self.applyValues(
+            snapshots,
+            {
+                self.STYLE_KEYS[property_name]: value,
+                "custom style initialized": True,
+            },
+        )
 
     def applyValues(self, snapshots: Iterable[TimeSeriesSnapshot], values):
         changed = []
@@ -95,6 +131,9 @@ class ResidualStyleController:
             for key in RESIDUAL_STYLE_KEYS:
                 if key in values:
                     residual[key] = self._normalize(key, values[key])
+            for key in RESIDUAL_MODE_KEYS:
+                if key in values:
+                    residual[key] = self._normalize_bool(values[key])
             changed.append(_with_residual_style(snapshot, params))
         return changed
 
@@ -105,7 +144,21 @@ class ResidualStyleController:
         green = randint(0, 255)  # nosec B311
         blue = randint(0, 255)  # nosec B311
         color = "#{:02x}{:02x}{:02x}".format(red, green, blue)
-        return self.applyValues(snapshots, {"marker color": color, "line color": color})
+        return self.applyValues(
+            snapshots,
+            {
+                "marker color": color,
+                "line color": color,
+                "custom style initialized": True,
+            },
+        )
+
+    @staticmethod
+    def _normalize_bool(value):
+        """Normalize compatibility Boolean values without treating ``"false"`` as true."""
+        if isinstance(value, str):
+            return value.strip().lower() not in {"false", "0", "no", "off", ""}
+        return bool(value)
 
     @staticmethod
     def _normalize(key, value):

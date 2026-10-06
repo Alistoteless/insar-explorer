@@ -23,7 +23,7 @@ from ..settings.model import (
     SeriesStyleSettings,
 )
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 14
 DEFAULT_PREFIX = "insar_explorer/time_series"
 
 
@@ -127,6 +127,8 @@ KEY_SPECS = (
     ("fit_defaults", "line_color", "fit/line_color", "str", None),
     ("fit_defaults", "line_width", "fit/line_width", "float", (0, 100)),
     ("fit_defaults", "line_alpha", "fit/line_alpha", "float", (0, 1)),
+    ("residual_defaults", "match_series_style", "residual/match_series_style", "bool", None),
+    ("residual_defaults", "custom_style_initialized", "residual/custom_style_initialized", "bool", None),
     ("residual_defaults", "marker", "residual/marker", "str", None),
     ("residual_defaults", "marker_color", "residual/marker_color", "str", None),
     ("residual_defaults", "marker_edge_color", "residual/marker_edge_color", "str", None),
@@ -260,6 +262,12 @@ class QSettingsUserPreferencesRepository:
                     kwargs[field] = self._coerce(
                         self._raw(suffix, default), default, kind, constraints
                     )
+            if scope == "residual_defaults" and not self._contains(
+                "residual/custom_style_initialized"
+            ):
+                kwargs["custom_style_initialized"] = not bool(
+                    kwargs["match_series_style"]
+                )
             if scope == "residual_plot" and not self._contains("residual_plot/enabled"):
                 legacy_suffix = "analysis_defaults/fit/show_residuals"
                 if self._contains(legacy_suffix):

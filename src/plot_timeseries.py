@@ -1833,8 +1833,8 @@ class PlotTs():
         return fit_plot, residuals_values
 
     def _normalizedResidualStyle(self, presentation: TimeSeriesPresentation):
-        """Return the record-owned residual appearance."""
-        return presentation.residual
+        """Return effective residual appearance resolved from record-owned styles."""
+        return presentation.residual.resolve_for_series(presentation.series)
 
     def plotResiduals(
         self, series: TimeSeriesData, presentation: TimeSeriesPresentation,
@@ -3293,7 +3293,7 @@ class PlotTs():
                     )
                 )
             if graphics.residual_scatter is not None:
-                style = record.presentation.residual
+                style = self._normalizedResidualStyle(record.presentation)
                 graphics.residual_scatter.setPen(
                     self._seriesMarkerPen(
                         style.marker, style.marker_color, style.marker_alpha
