@@ -314,8 +314,18 @@ class DefaultTimeSeriesStyle:
         return cls(TimeSeriesStyle.fromParams(params))
 
     def snapshotPresentation(self) -> TimeSeriesPresentation:
-        """Return an immutable presentation snapshot for a newly created record."""
-        return replace(self._presentation)
+        """Return an immutable presentation snapshot for a newly created record.
+
+        Saved residual defaults are templates, not established per-record custom
+        state. Normalize their initialization semantics when a new record forks
+        from the template so Match-on records seed from their own series on first
+        unlink, while explicit Match-off custom defaults remain initialized.
+        """
+        presentation = replace(self._presentation)
+        return replace(
+            presentation,
+            residual=presentation.residual.for_default_application(),
+        )
 
     def snapshotStyle(self) -> TimeSeriesStyle:
         """Return a defensive compatibility projection."""

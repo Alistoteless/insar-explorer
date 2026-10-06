@@ -177,6 +177,19 @@ class ResidualStyleSettings:
             line_alpha=normalize_alpha(series_style.line_opacity, self.line_alpha),
         )
 
+    def for_default_application(self) -> "ResidualStyleSettings":
+        """Return this saved template normalized for application to one record.
+
+        Match-on defaults represent the per-series matched workflow, so a record
+        created from or reset to such a template has no established custom
+        residual style yet. Match-off defaults are explicit custom templates and
+        therefore arrive initialized. Dormant field values are retained in both
+        cases; only their per-record initialization semantics are normalized.
+        """
+        return replace(
+            self, custom_style_initialized=not bool(self.match_series_style)
+        )
+
     def seed_custom_from_series(
         self, series_style: SeriesStyleSettings
     ) -> "ResidualStyleSettings":

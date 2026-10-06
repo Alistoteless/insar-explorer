@@ -2657,8 +2657,11 @@ class GuiController(QObject):
         self._refreshTimeSeriesStylePopup()
 
     def restoreResidualStyleDefaults(self):
-        """Apply saved Residual defaults to current and selected styles."""
-        defaults = self.choose_point_click_handler.plot_ts.user_preferences.load().residual_defaults
+        """Apply saved Residual defaults using per-record template semantics."""
+        defaults = (
+            self.choose_point_click_handler.plot_ts.user_preferences.load()
+            .residual_defaults.for_default_application()
+        )
         self._applyCurrentResidualStyle(defaults)
 
     def applyFactoryResidualStyleDefaults(self):
