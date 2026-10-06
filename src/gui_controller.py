@@ -94,7 +94,7 @@ from .time_series.legend_entry import resolve_initial_legend_settings
 from .time_series.settings.model import (
     AppearanceSettings, AxisManualRange, EnsembleStyleSettings, ExportSettings,
     FitStyleSettings, LegendEntryDefaults, LegendSettings, RelatedLegendDefaults, ReplicaSettings, ReplicaStyleSettings,
-    ResidualStyleSettings, SeriesStyleSettings, XAxisSettings,
+    ResidualPlotSettings, ResidualStyleSettings, SeriesStyleSettings, XAxisSettings,
 )
 from .time_series.settings.persistence import build_legacy_plot_params
 from .time_series.persistence import PreferencesPersistenceError
@@ -269,7 +269,9 @@ class GuiController(QObject):
             fit_enabled=fit_defaults.enabled,
             selected_fit_model=fit_defaults.model,
             seasonal_enabled=fit_defaults.seasonal,
-            residual_enabled=fit_defaults.show_residuals,
+        )
+        plotter.plot_residuals_flag = bool(
+            self.time_series_settings.residual_plot.enabled
         )
         replica_defaults = self.time_series_settings.replica_analysis_defaults
         self._replica_enabled_view = replica_defaults.enabled
@@ -399,7 +401,6 @@ class GuiController(QObject):
             enabled=state.fit_enabled,
             model=state.selected_fit_model,
             seasonal=state.seasonal_enabled,
-            show_residuals=bool(state.fit_enabled and state.residual_enabled),
         )
 
     def _persistCurrentReplicaAnalysisDefaults(self):
@@ -1562,7 +1563,9 @@ class GuiController(QObject):
         self.ui.time_series_toolbar.fitModelChanged.connect(self.setTimeSeriesFitModel)
         self.ui.time_series_toolbar.fitSettingsRequested.connect(self.showFitPopup)
         self.ui.time_series_toolbar.seasonalEnabledChanged.connect(self.setTimeSeriesSeasonalEnabled)
-        self.ui.time_series_toolbar.residualEnabledChanged.connect(self.setTimeSeriesResidualEnabled)
+        self.ui.time_series_toolbar.residualPlotEnabledChanged.connect(
+            self.setResidualPlotEnabled
+        )
         self.ui.time_series_toolbar.xAxisModeChanged.connect(self.setTimeSeriesXAxisMode)
         self.ui.time_series_toolbar.manualXAxisEditRequested.connect(self.showManualXAxisPopup)
         self.manual_x_axis_popup.applyRequested.connect(self.applyManualXAxisRange)
@@ -1590,7 +1593,6 @@ class GuiController(QObject):
         toolbar = self.ui.time_series_toolbar
         fit_popup.modelChanged.connect(toolbar.selectFitModel)
         fit_popup.seasonalEnabledChanged.connect(toolbar.seasonalEnabledChanged.emit)
-        fit_popup.residualEnabledChanged.connect(toolbar.residualEnabledChanged.emit)
         fit_popup.fitLineTypeChanged.connect(
             lambda value: self._applySelectedFitStyle("line_type", value)
         )
@@ -2329,7 +2331,6 @@ class GuiController(QObject):
     def resetTimeSeriesFitState(self):
         """Reset fit activity while retaining a valid selected model for this session."""
         self.time_series_fit_state.setFitEnabled(False)
-        self.time_series_fit_state.residual_enabled = False
         self._applyTimeSeriesFitState(refresh=False)
 
     def _syncTimeSeriesFitControls(self):
@@ -2339,12 +2340,13 @@ class GuiController(QObject):
         toolbar.setFitEnabled(state.fit_enabled)
         toolbar.setSelectedFitModel(state.selected_fit_model)
         toolbar.setSeasonalEnabled(state.seasonal_enabled)
-        toolbar.setResidualEnabled(state.residual_enabled)
+        toolbar.setResidualPlotEnabled(
+            self.time_series_settings.residual_plot.enabled
+        )
         if hasattr(self, "fit_popup"):
             self.fit_popup.setSettings(
                 state.selected_fit_model,
                 state.seasonal_enabled,
-                state.residual_enabled,
             )
             self._refreshFitPopupAvailability()
 
@@ -2358,7 +2360,6 @@ class GuiController(QObject):
         if fit.model is not None:
             state.setSelectedModel(fit.model)
         state.seasonal_enabled = fit.seasonal
-        state.residual_enabled = fit.show_residuals
         replica = record.analysis.replica
         self._replica_enabled_view = replica.enabled
         self._replica_interval_view = replica.interval_mm
@@ -2374,12 +2375,13 @@ class GuiController(QObject):
         plotter = self.choose_point_click_handler.plot_ts
         plotter.fit_models = [state.selected_fit_model] if state.fit_enabled else []
         plotter.fit_seasonal_flag = state.seasonal_enabled
-        plotter.plot_residuals_flag = state.residual_enabled and state.fit_enabled
+        plotter.plot_residuals_flag = bool(
+            self.time_series_settings.residual_plot.enabled
+        )
         fit_config = FitConfiguration(
             enabled=state.fit_enabled,
             model=state.selected_fit_model if state.fit_enabled else None,
             seasonal=state.seasonal_enabled,
-            show_residuals=state.residual_enabled and state.fit_enabled,
         )
         self._syncTimeSeriesFitControls()
         if refresh and plotter.editable_time_series_record() is not None:
@@ -2402,7 +2404,6 @@ class GuiController(QObject):
                 refresh=True,
                 report_statistics=bool(enabled),
             )
-            plotter.initializeAxes()
         current = plotter.editable_time_series_record()
         if current is not None:
             self._syncActiveAnalysisControls(current)
@@ -2431,38 +2432,27 @@ class GuiController(QObject):
         )
         self._persistCurrentFitAnalysisDefaults()
 
-    def setTimeSeriesResidualEnabled(self, enabled):
-        """Commit residual intent once, then rebuild the matching axes layout."""
-        self.time_series_fit_state.setResidualEnabled(enabled)
-        state = self.time_series_fit_state
+    def setResidualPlotEnabled(self, enabled):
+        """Set plot-level residual subplot visibility without mutating any record Fit."""
+        settings = ResidualPlotSettings(enabled=enabled)
+        self.time_series_settings.replace_domain("residual_plot", settings)
         plotter = self.choose_point_click_handler.plot_ts
-        fit_config = FitConfiguration(
-            enabled=state.fit_enabled,
-            model=state.selected_fit_model if state.fit_enabled else None,
-            seasonal=state.seasonal_enabled,
-            show_residuals=bool(state.fit_enabled and state.residual_enabled),
-        )
+        plotter.plot_residuals_flag = settings.enabled
+        self.ui.time_series_toolbar.setResidualPlotEnabled(settings.enabled)
         with plotter.axisViewUpdateGuard():
-            if not plotter.updateActiveAnalysis(
-                fit=fit_config, report_statistics=False
-            ):
-                self._applyTimeSeriesFitState(refresh=False)
             plotter.initializeAxes()
-        # The rerender callback projects the committed record back into both UI
-        # surfaces. Repeat the guarded projection for plotters without a callback.
-        current = plotter.editable_time_series_record()
-        if current is not None:
-            self._syncActiveAnalysisControls(current)
-        self._persistCurrentFitAnalysisDefaults()
+        self._saveUserPreferences(
+            lambda: plotter.user_preferences.save_residual_plot(settings),
+            "Residual plot preference saved.",
+        )
 
     def _fitStyleAvailable(self):
         """Return Fit Style editability from Fit activation alone."""
         return bool(self.time_series_fit_state.fit_enabled)
 
     def _residualStyleAvailable(self):
-        """Return Residual Style editability from Fit and residual feature state."""
-        state = self.time_series_fit_state
-        return bool(state.fit_enabled and state.residual_enabled)
+        """Return Residual Style editability from per-series Fit activation alone."""
+        return bool(self.time_series_fit_state.fit_enabled)
 
     def _refreshFitStyleAvailability(self):
         """Synchronize Fit Style contents without rendering or emitting edits."""
@@ -2490,7 +2480,7 @@ class GuiController(QObject):
         snapshots = self.selectedTimeSeriesSnapshots() if snapshots is None else snapshots
         state = self.time_series_fit_state
         return TimeSeriesStyleAvailability.fromSelection(
-            snapshots, fit_enabled=state.fit_enabled, residual_enabled=state.residual_enabled
+            snapshots, fit_enabled=state.fit_enabled
         )
 
     def selectedSeriesStyles(self):

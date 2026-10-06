@@ -37,7 +37,6 @@ class StickyAnalysisDefaultsCoordinator:
                 enabled=fit.enabled,
                 model=fit.model,
                 seasonal=fit.seasonal,
-                show_residuals=fit.show_residuals,
             ),
             replica=ReplicaConfiguration(
                 enabled=replica.enabled,
@@ -52,14 +51,12 @@ class StickyAnalysisDefaultsCoordinator:
         enabled: bool,
         model: str,
         seasonal: bool,
-        show_residuals: bool,
     ) -> FitAnalysisDefaults:
         """Normalize and persist fit defaults from one explicit user action."""
         defaults = FitAnalysisDefaults(
             enabled=enabled,
             model=model,
             seasonal=seasonal,
-            show_residuals=show_residuals,
         )
         self._settings_model.replace_domain("fit_analysis_defaults", defaults)
         self._notify_snapshot_changed()

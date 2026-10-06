@@ -40,7 +40,6 @@ class FitPopup(QWidget):
 
     modelChanged = pyqtSignal(str)
     seasonalEnabledChanged = pyqtSignal(bool)
-    residualEnabledChanged = pyqtSignal(bool)
     fitLineTypeChanged = pyqtSignal(str)
     fitLineColorChanged = pyqtSignal(str)
     fitLineWidthChanged = pyqtSignal(float)
@@ -82,7 +81,7 @@ class FitPopup(QWidget):
         self.setMaximumWidth(430)
 
     def _createSettingsTab(self):
-        """Build compact model choices and the two Fit option checkboxes."""
+        """Build compact model choices and per-series fitting options."""
         tab = QWidget(self.tabs)
         tab.setObjectName("tab_ts_fit_settings")
         layout = QVBoxLayout(tab)
@@ -126,32 +125,17 @@ class FitPopup(QWidget):
         models_layout.addWidget(self.seasonal_checkbox, 3, 0, 1, 2)
         layout.addWidget(models)
 
-        options = QGroupBox("Options", tab)
-        options_layout = QVBoxLayout(options)
-        options_layout.setContentsMargins(SPACE_LG, SPACE_MD, SPACE_LG, SPACE_MD)
-        options_layout.setSpacing(SPACE_SM)
-        self.residual_checkbox = QCheckBox("Show residual plot", options)
-        self.residual_checkbox.setObjectName("check_ts_fit_residual")
-        self.residual_checkbox.setIcon(
-            themed_icon("residual")
-        )
-        options_layout.addWidget(self.residual_checkbox)
-        layout.addWidget(options)
         layout.addStretch(1)
 
         ordered_controls = [
             self.model_buttons[model_id] for model_id, *_ in FIT_MODELS
-        ] + [self.seasonal_checkbox, self.residual_checkbox]
+        ] + [self.seasonal_checkbox]
         for current, following in zip(ordered_controls, ordered_controls[1:]):
             QWidget.setTabOrder(current, following)
 
         self.seasonal_checkbox.toggled.connect(
             lambda value: None if self._loading
             else self.seasonalEnabledChanged.emit(bool(value))
-        )
-        self.residual_checkbox.toggled.connect(
-            lambda value: None if self._loading
-            else self.residualEnabledChanged.emit(bool(value))
         )
         self.tabs.addTab(tab, "Settings")
 
@@ -381,15 +365,14 @@ class FitPopup(QWidget):
         if checked and not self._loading:
             self.modelChanged.emit(model_id)
 
-    def setSettings(self, model, seasonal, residual):
-        """Synchronize configuration without emitting user-facing changes."""
+    def setSettings(self, model, seasonal):
+        """Synchronize Fit configuration without emitting user-facing changes."""
         if model not in self.model_buttons:
             raise KeyError(f"Unknown fit model: {model}")
         self._loading = True
         try:
             self.model_buttons[model].setChecked(True)
             self.seasonal_checkbox.setChecked(bool(seasonal))
-            self.residual_checkbox.setChecked(bool(residual))
         finally:
             self._loading = False
 

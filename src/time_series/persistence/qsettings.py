@@ -18,11 +18,12 @@ from ..settings.model import (
     LegendEntryDefaults, LegendSettings, RelatedLegendDefaults,
     ReplicaAnalysisDefaults,
     ReplicaSettings,
+    ResidualPlotSettings,
     ResidualStyleSettings,
     SeriesStyleSettings,
 )
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 DEFAULT_PREFIX = "insar_explorer/time_series"
 
 
@@ -145,7 +146,7 @@ KEY_SPECS = (
     ("fit_analysis_defaults", "model", "analysis_defaults/fit/model", "choice",
      ("poly-1", "poly-2", "poly-3", "exp", "log")),
     ("fit_analysis_defaults", "seasonal", "analysis_defaults/fit/seasonal", "bool", None),
-    ("fit_analysis_defaults", "show_residuals", "analysis_defaults/fit/show_residuals", "bool", None),
+    ("residual_plot", "enabled", "residual_plot/enabled", "bool", None),
     ("replica_analysis_defaults", "enabled", "analysis_defaults/replica/enabled", "bool", None),
     ("replica_analysis_defaults", "pair_count", "analysis_defaults/replica/pair_count", "int", (1, 10)),
     ("replica_analysis_defaults", "interval_mm", "analysis_defaults/replica/interval_mm", "float", (0.1, 10000)),
@@ -189,6 +190,7 @@ _SCOPE_TYPES = {
     "residual_defaults": ResidualStyleSettings,
     "replica_defaults": ReplicaSettings,
     "fit_analysis_defaults": FitAnalysisDefaults,
+    "residual_plot": ResidualPlotSettings,
     "replica_analysis_defaults": ReplicaAnalysisDefaults,
     "appearance": AppearanceSettings,
     "export": ExportSettings,
@@ -257,6 +259,15 @@ class QSettingsUserPreferencesRepository:
                     default = getattr(base, field)
                     kwargs[field] = self._coerce(
                         self._raw(suffix, default), default, kind, constraints
+                    )
+            if scope == "residual_plot" and not self._contains("residual_plot/enabled"):
+                legacy_suffix = "analysis_defaults/fit/show_residuals"
+                if self._contains(legacy_suffix):
+                    kwargs["enabled"] = self._coerce(
+                        self._raw(legacy_suffix, base.enabled),
+                        base.enabled,
+                        "bool",
+                        None,
                     )
             if scope == "appearance":
                 # existing users may have customized Left labels
@@ -352,6 +363,9 @@ class QSettingsUserPreferencesRepository:
 
     def save_fit_analysis_defaults(self, settings: FitAnalysisDefaults) -> None:
         self.save_scope("fit_analysis_defaults", settings)
+
+    def save_residual_plot(self, settings: ResidualPlotSettings) -> None:
+        self.save_scope("residual_plot", settings)
 
     def save_replica_analysis_defaults(self, settings: ReplicaAnalysisDefaults) -> None:
         self.save_scope("replica_analysis_defaults", settings)

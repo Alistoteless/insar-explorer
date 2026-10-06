@@ -39,7 +39,7 @@ class TimeSeriesToolbar(QToolBar):
     fitSettingsRequested = pyqtSignal()
     fitModelChanged = pyqtSignal(str)
     seasonalEnabledChanged = pyqtSignal(bool)
-    residualEnabledChanged = pyqtSignal(bool)
+    residualPlotEnabledChanged = pyqtSignal(bool)
     xAxisModeChanged = pyqtSignal(str)
     manualXAxisEditRequested = pyqtSignal()
     yAxisModeChanged = pyqtSignal(str)
@@ -71,7 +71,6 @@ class TimeSeriesToolbar(QToolBar):
         }
         self._selected_fit_model = "poly-1"
         self._seasonal_enabled = False
-        self._residual_enabled = False
         self.fit_button = SplitToolButton(
             icon=themed_icon(self._fit_models[self._selected_fit_model][1]),
             primary_checkable=True,
@@ -279,6 +278,21 @@ class TimeSeriesToolbar(QToolBar):
         self.legend_button.setPrimaryAccessibleName("Plot legend")
         self.legend_button.setSecondaryAccessibleName("Plot legend settings")
         self.legend_button.setSecondaryToolTip("Plot legend settings")
+
+        self.residual_plot_button = QToolButton(self)
+        self.residual_plot_button.setObjectName("tool_ts_residual_plot")
+        set_toolbar_control_role(self.residual_plot_button, "command")
+        self.residual_plot_button.setIcon(themed_icon("residual"))
+        self.residual_plot_button.setIconSize(self.iconSize())
+        self.residual_plot_button.setCheckable(True)
+        self.residual_plot_button.setToolButtonStyle(TOOL_BUTTON_ICON_ONLY)
+        self.residual_plot_button.setAccessibleName("Residual plot")
+        self.residual_plot_button.setAccessibleDescription(
+            "Show or hide the plot-level residual subplot independently from fitting."
+        )
+        self.residual_plot_button.setToolTip("Show residual plot")
+        self.residual_plot_button.setStatusTip("Show residual plot")
+
         self.plot_export_button = SplitToolButton(
             icon=themed_icon("screenshot"),
             primary_checkable=False,
@@ -332,6 +346,7 @@ class TimeSeriesToolbar(QToolBar):
         self.addWidget(self.hover_readout)
 
         self.addWidget(self.legend_button)
+        self.addWidget(self.residual_plot_button)
         self.addWidget(self.x_axis_button)
         self.addWidget(self.y_axis_button)
         self.addAction(self.appearance_action)
@@ -365,6 +380,7 @@ class TimeSeriesToolbar(QToolBar):
         self.series_y_axis_group.triggered.connect(self._seriesYAxisActionTriggered)
         self.legend_button.primaryToggled.connect(self.legendEnabledChanged.emit)
         self.legend_button.secondaryTriggered.connect(self.legendSettingsRequested.emit)
+        self.residual_plot_button.toggled.connect(self.residualPlotEnabledChanged.emit)
 
     def setHoverReadout(self, text):
         """Update the secondary time-series hover readout text."""
@@ -420,17 +436,22 @@ class TimeSeriesToolbar(QToolBar):
         self._seasonal_enabled = bool(enabled)
         self._updateFitMetadata()
 
-    def setResidualEnabled(self, enabled):
-        """Update Residual metadata without emitting a user-change signal."""
-        self._residual_enabled = bool(enabled)
-        self._updateFitMetadata()
+    def setResidualPlotEnabled(self, enabled):
+        """Update the plot-level Residual toggle without emitting a user change."""
+        enabled = bool(enabled)
+        previous = self.residual_plot_button.blockSignals(True)
+        try:
+            self.residual_plot_button.setChecked(enabled)
+        finally:
+            self.residual_plot_button.blockSignals(previous)
+        tooltip = "Hide residual plot" if enabled else "Show residual plot"
+        self.residual_plot_button.setToolTip(tooltip)
+        self.residual_plot_button.setStatusTip(tooltip)
 
     def _updateFitMetadata(self):
-        """Describe the selected model and current Fit configuration."""
+        """Describe only the selected model and per-series Fit configuration."""
         label = self._fit_models[self._selected_fit_model][0]
         detail = label + (" + seasonal" if self._seasonal_enabled else "")
-        if self._residual_enabled:
-            detail += "; residual shown"
         state = "enabled" if self.fit_button.isChecked() else "disabled"
         tooltip = f"Fit: {detail} — {state}"
         self.fit_button.setPrimaryToolTip(tooltip)

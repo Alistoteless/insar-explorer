@@ -491,7 +491,6 @@ class PlotTs():
         self._residual_legend = None
         self._main_legend_overlay = None
         self._residual_legend_overlay = None
-        self.plot_residuals_flag = False
         self.random_marker_color_flag = False
         self.parms = {}
         if settings_model is None or user_preferences is None:
@@ -505,6 +504,7 @@ class PlotTs():
             project_state_repository or NullProjectStateRepository()
         )
         self.settings_model = settings_model
+        self.plot_residuals_flag = bool(self.settings_model.residual_plot.enabled)
         self._settings_unsubscribe = self.settings_model.subscribe(self._onSettingsChanged)
         self.refreshCompatibilityViews()
         self.coords = None
@@ -647,6 +647,8 @@ class PlotTs():
         }
         if change_set.domains & compatibility_domains:
             self.refreshCompatibilityViews()
+        if "residual_plot" in change_set.domains:
+            self.plot_residuals_flag = bool(self.settings_model.residual_plot.enabled)
         if "appearance" in change_set.domains:
             self.applyAppearanceSettings(change_set.properties.get("appearance", frozenset()))
         if "legend" in change_set.domains:
@@ -737,7 +739,6 @@ class PlotTs():
             enabled=fit_defaults.enabled,
             model=fit_defaults.model,
             seasonal=fit_defaults.seasonal,
-            show_residuals=fit_defaults.show_residuals,
         )
         replica_defaults = self.settings_model.replica_analysis_defaults
         replica = ReplicaConfiguration(
@@ -864,7 +865,6 @@ class PlotTs():
             self.ref_coords = None
             self.fit_models = []
             self.fit_seasonal_flag = False
-            self.plot_residuals_flag = False
             return
         series = record.data
         self.dates = series.dates
@@ -880,7 +880,6 @@ class PlotTs():
         fit = record.analysis.fit
         self.fit_models = [fit.model] if fit.enabled and fit.model else []
         self.fit_seasonal_flag = fit.seasonal
-        self.plot_residuals_flag = fit.show_residuals and fit.enabled
         if self.analysis_state_sync_callback is not None:
             self.analysis_state_sync_callback(record)
 
@@ -1002,12 +1001,25 @@ class PlotTs():
         return None
 
     def yAxisDomainAvailability(self):
-        """Return authoritative activity flags derived only from visible record data."""
+        """Return active Y domains for the currently visible plot layout.
+
+        Residual record eligibility is intentionally separate from residual-subplot
+        visibility.  Fitted records may retain residual data while the subplot is
+        hidden, but hidden residual domains must remain dormant for toolbar/range
+        projection until the plot-level Residual plot setting creates the subplot.
+        """
+        residual_visible = bool(
+            self.plot_residuals_flag and self.ax_residuals is not None
+        )
         return {
             "series": self._hasVisibleSeriesForSide("left"),
             "right_series": self._hasVisibleSeriesForSide("right"),
-            "residual": self._hasVisibleSeriesForSide("left", residual=True),
-            "right_residual": self._hasVisibleSeriesForSide("right", residual=True),
+            "residual": residual_visible and self._hasVisibleSeriesForSide(
+                "left", residual=True
+            ),
+            "right_residual": residual_visible and self._hasVisibleSeriesForSide(
+                "right", residual=True
+            ),
         }
 
     def _hasVisibleSeriesForSide(self, side, *, residual=False):
@@ -1019,7 +1031,6 @@ class PlotTs():
                 return True
             if (
                 record.analysis.fit.enabled
-                and record.analysis.fit.show_residuals
                 and record.data.residuals_values is not None
             ):
                 return True
@@ -1239,8 +1250,6 @@ class PlotTs():
             analysis=record_analysis, target_attributes=target_attributes,
             reference_attributes=reference_attributes,
         )
-        fit = record.analysis.fit
-        self.plot_residuals_flag = bool(fit.enabled and fit.show_residuals)
         self.initializeAxes()
         if update:
             self.rerender_editable_record(
@@ -1836,8 +1845,7 @@ class PlotTs():
         if residuals_values is None:
             residuals_values = series.residuals_values
         if (
-                fit_config.show_residuals
-                and fit_config.enabled
+                fit_config.enabled
                 and self.ax_residuals is not None
                 and residuals_values is not None
         ):
@@ -3041,7 +3049,6 @@ class PlotTs():
             if (
                 data.residuals_values is not None
                 and record.analysis.fit.enabled
-                and record.analysis.fit.show_residuals
             ):
                 values[residual_domain].append(data.residuals_values)
 

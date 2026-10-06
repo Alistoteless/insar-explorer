@@ -264,7 +264,6 @@ class FitAnalysisDefaults:
     enabled: bool = False
     model: str = "poly-1"
     seasonal: bool = False
-    show_residuals: bool = False
 
     def __post_init__(self):
         from ..fit_state import DEFAULT_FIT_MODEL, FIT_MODELS
@@ -274,11 +273,16 @@ class FitAnalysisDefaults:
             self, "model", self.model if self.model in FIT_MODELS else DEFAULT_FIT_MODEL
         )
         object.__setattr__(self, "seasonal", bool(self.seasonal))
-        object.__setattr__(
-            self,
-            "show_residuals",
-            bool(self.enabled) and bool(self.show_residuals),
-        )
+
+
+@dataclass(frozen=True)
+class ResidualPlotSettings:
+    """Plot-level visibility for the residual subplot."""
+
+    enabled: bool = False
+
+    def __post_init__(self):
+        object.__setattr__(self, "enabled", bool(self.enabled))
 
 
 @dataclass(frozen=True)
@@ -757,6 +761,7 @@ class TimeSeriesSettingsModel:
     ensemble_defaults: EnsembleStyleSettings = field(default_factory=EnsembleStyleSettings)
     replica: ReplicaSettings = field(default_factory=ReplicaSettings)
     fit_analysis_defaults: FitAnalysisDefaults = field(default_factory=FitAnalysisDefaults)
+    residual_plot: ResidualPlotSettings = field(default_factory=ResidualPlotSettings)
     replica_analysis_defaults: ReplicaAnalysisDefaults = field(default_factory=ReplicaAnalysisDefaults)
     y_axis: YAxisSettings = field(default_factory=YAxisSettings)
     x_axis: XAxisSettings = field(default_factory=XAxisSettings)
@@ -830,6 +835,7 @@ class TimeSeriesSettingsModel:
             "ensemble_defaults": self.ensemble_defaults.asParams(),
             "replica_defaults": {"interval_mm": self.replica.interval_mm, "pair_count": self.replica.pair_count},
             "fit_analysis_defaults": asdict(self.fit_analysis_defaults),
+            "residual_plot": asdict(self.residual_plot),
             "replica_analysis_defaults": asdict(self.replica_analysis_defaults),
             "appearance": asdict(self.appearance),
             "export": asdict(self.export),
@@ -841,4 +847,4 @@ class TimeSeriesSettingsModel:
         return TimeSeriesSettingsModel(**{name: deepcopy(getattr(self, name)) for name in (
             "series_defaults", "fit_defaults", "residual_defaults", "fit_current",
             "residual_current", "ensemble_defaults", "replica", "fit_analysis_defaults",
-            "replica_analysis_defaults", "y_axis", "x_axis", "appearance", "export", "legend")})
+            "residual_plot", "replica_analysis_defaults", "y_axis", "x_axis", "appearance", "export", "legend")})
