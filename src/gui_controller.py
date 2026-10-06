@@ -2400,7 +2400,7 @@ class GuiController(QObject):
             self._refreshTimeSeriesStylePopup()
 
     def setTimeSeriesFitEnabled(self, enabled):
-        """Commit Fit intent and rebuild any dependent residual layout once."""
+        """Commit per-series Fit intent without changing plot-level residual visibility."""
         state = self.time_series_fit_state
         state.setFitEnabled(enabled)
         plotter = self.choose_point_click_handler.plot_ts

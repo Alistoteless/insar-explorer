@@ -56,7 +56,7 @@ Rename, remove, and copy settings
 
 Use the selection list controls or context menu to rename or remove stored time
 series. Settings can be copied from one time series and pasted as **Style**,
-**Fit**, **Replica**, **Y axis,**, **Legend entry**, or **All** presentation settings.
+**Fit**, **Replica**, **Y axis**, **Legend entry**, or **All** presentation settings.
 
 Configure the plot
 ==================
@@ -66,8 +66,8 @@ Appearance
 
 The time-series toolbar separates per-series controls from plot-level controls.
 Use **Style**, **Fit**, **Replica**, **Y axis**, and **Legend entry** for the
-selected or pending time series. Use **Plot legend**, **X range**, **Y range**,
-**Appearance**, and **Export** for the plot as a whole.
+selected or pending time series. Use **Plot legend**, **Residual plot**,
+**X range**, **Y range**, **Appearance**, and **Export** for the plot as a whole.
 
 Appearance also provides independent labels for **Main left Y**, **Main right Y**,
 **Residual left Y**, and **Residual right Y**. A label for an inactive axis is
@@ -120,8 +120,17 @@ Fit
 ---
 
 Use **Fit** to enable a fitted model for the current time series. The Fit menu
-selects the model and opens Fit settings, including fit and residual appearance.
-Residual display is available through the Fit controls when applicable.
+selects the model and opens Fit settings. Fit controls fitting only. It does not
+show or hide the residual subplot.
+
+Residual plot
+-------------
+
+Use the plot-level **Residual plot** button to show or hide the residual subplot
+independently from per-series Fit. The subplot can remain visible when no fitted
+series currently contributes residuals. When it is visible, each visible fitted
+time series with residual values contributes residual graphics on that series'
+assigned Left or Right Y axis.
 
 Replica
 -------

@@ -3,7 +3,8 @@
 
 v2.13.0.dev
 
-
+- Added an independent plot-level Residual control.
+- Residuals now match their source time-series style by default.
 
 v2.12.0
 
