@@ -6,6 +6,8 @@ v2.13.0.dev
 - Added an independent plot-level Residual control.
 - Residuals now match their source time-series style by default.
 - Added optional per-series Replica rendering in the residual subplot.
+- Added optional automatic distinct colors for new time series.
+- Extended distinct-color assignment to Ensemble styling.
 
 v2.12.0
 

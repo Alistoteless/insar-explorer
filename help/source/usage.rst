@@ -58,6 +58,11 @@ Use the selection list controls or context menu to rename or remove stored time
 series. Settings can be copied from one time series and pasted as **Style**,
 **Fit**, **Replica**, **Y axis**, **Legend entry**, or **All** presentation settings.
 
+Use **Assign distinct colors** on selected stored time series to apply deterministic
+palette colors. Each chosen color is used as the identity color for both the main
+Series marker/line and its Ensemble member/fill appearance. Existing opacity and
+other style settings are preserved.
+
 Configure the plot
 ==================
 
@@ -77,7 +82,24 @@ Style
 -----
 
 Use **Style** to configure the appearance of the selected or pending time
-series.
+series. **Randomize Color** assigns one random identity color to the Series
+marker and line and to the Ensemble member line and fill. The individual color
+controls remain independently editable afterward.
+
+Auto-color new series
+---------------------
+
+**Auto-color new series** is an icon-only toolbar creation mode and is on by
+default. When enabled, each newly created time series receives the next available
+color from the existing distinct palette after normal Series and Ensemble defaults
+have been applied. The same base color is assigned to the Series marker and line
+and to the Ensemble member line and fill. All other saved style defaults are kept.
+
+Existing records are never recolored automatically. Deleting or manually recoloring
+a record can make a palette color available again for a future series. If all
+palette colors are already in use, colors are reused deterministically. The
+explicit **Assign distinct colors** action remains separate and recolors only the
+selected existing records.
 
 Legend entry
 ------------
