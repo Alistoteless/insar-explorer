@@ -87,14 +87,13 @@ from .time_series.residual_style_controller import ResidualStyleController
 from .time_series.style_availability import TimeSeriesStyleAvailability
 from .time_series.style_controller import TimeSeriesStyleController
 from .time_series.style_schema import percent_to_alpha
-from .time_series.style_palette import (
-    DISTINCT_TIME_SERIES_COLORS, with_primary_series_color,
-)
+from .time_series.style_palette import assign_distinct_family_colors
 from .time_series.legend_entry import resolve_initial_legend_settings
 from .time_series.settings.model import (
     AppearanceSettings, AxisManualRange, EnsembleStyleSettings, ExportSettings,
     FitStyleSettings, LegendEntryDefaults, LegendSettings, RelatedLegendDefaults, ReplicaSettings, ReplicaStyleSettings,
-    ResidualPlotSettings, ResidualStyleSettings, SeriesStyleSettings, XAxisSettings,
+    ResidualPlotSettings, ResidualStyleSettings, SeriesStyleSettings,
+    TimeSeriesCreationSettings, XAxisSettings,
 )
 from .time_series.settings.persistence import build_legacy_plot_params
 from .time_series.persistence import PreferencesPersistenceError
@@ -1578,6 +1577,9 @@ class GuiController(QObject):
         self.ui.time_series_toolbar.residualPlotEnabledChanged.connect(
             self.setResidualPlotEnabled
         )
+        self.ui.time_series_toolbar.autoColorNewSeriesChanged.connect(
+            self.setAutoColorNewSeriesEnabled
+        )
         self.ui.time_series_toolbar.xAxisModeChanged.connect(self.setTimeSeriesXAxisMode)
         self.ui.time_series_toolbar.manualXAxisEditRequested.connect(self.showManualXAxisPopup)
         self.manual_x_axis_popup.applyRequested.connect(self.applyManualXAxisRange)
@@ -2361,6 +2363,9 @@ class GuiController(QObject):
         toolbar.setResidualPlotEnabled(
             self.time_series_settings.residual_plot.enabled
         )
+        toolbar.setAutoColorNewSeriesEnabled(
+            self.time_series_settings.creation.auto_color_new_series
+        )
         if hasattr(self, "fit_popup"):
             self.fit_popup.setSettings(
                 state.selected_fit_model,
@@ -2454,6 +2459,19 @@ class GuiController(QObject):
             report_statistics=fit_enabled,
         )
         self._persistCurrentFitAnalysisDefaults()
+
+    def setAutoColorNewSeriesEnabled(self, enabled):
+        """Persist the global creation policy without mutating existing records."""
+        settings = TimeSeriesCreationSettings(auto_color_new_series=enabled)
+        self.time_series_settings.replace_domain("creation", settings)
+        self.ui.time_series_toolbar.setAutoColorNewSeriesEnabled(
+            settings.auto_color_new_series
+        )
+        plotter = self.choose_point_click_handler.plot_ts
+        self._saveUserPreferences(
+            lambda: plotter.user_preferences.save_creation(settings),
+            "Auto-color preference saved.",
+        )
 
     def setResidualPlotEnabled(self, enabled):
         """Set plot-level residual subplot visibility without mutating any record Fit."""
@@ -3597,12 +3615,7 @@ class GuiController(QObject):
                 raise KeyError(
                     "one or more selected committed time series no longer exist"
                 )
-            replacements = []
-            for index, record in enumerate(originals):
-                color = DISTINCT_TIME_SERIES_COLORS[
-                    index % len(DISTINCT_TIME_SERIES_COLORS)
-                ]
-                replacements.append(with_primary_series_color(record, color))
+            replacements = assign_distinct_family_colors(originals)
             plotter.rerender_records(replacements, notify=True, draw=True)
         except Exception as error:
             self._reportDistinctColorFailure(error)

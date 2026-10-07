@@ -11,6 +11,7 @@ from ..models.time_series import (
     randomTimeSeriesColor,
 )
 from .settings.model import SeriesStyleSettings
+from .style_palette import with_series_family_color
 
 
 def _with_series_style(snapshot, params):
@@ -143,13 +144,14 @@ class TimeSeriesStyleController:
         return changed
 
     def randomizeColor(self, snapshots: Iterable[TimeSeriesSnapshot]):
-        """Apply one random coupled marker/line color to each selected snapshot."""
+        """Apply one random Series/Ensemble identity color to each target."""
         changed = []
         for snapshot in snapshots:
             color = randomTimeSeriesColor()
-            params = deepcopy(snapshot.style.params)
-            plot = params.setdefault("time series plot", {})
-            plot["marker color"] = color
-            plot["line color"] = color
-            changed.append(_with_series_style(snapshot, params))
+            changed.append(
+                replace(
+                    snapshot,
+                    presentation=with_series_family_color(snapshot.presentation, color),
+                )
+            )
         return changed

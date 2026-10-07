@@ -23,6 +23,7 @@ from .time_series.hover import (
     HoverObservation, format_hover_text, select_nearest_hover_observation,
 )
 from .time_series.replica_schema import residual_replica_value_pairs
+from .time_series.style_palette import apply_auto_color_to_new_series
 from .time_series.settings.persistence import build_legacy_plot_params
 from .time_series.persistence import NullProjectStateRepository
 from .qt_compat import NO_MOUSE_BUTTON, PALETTE_WINDOW_TEXT
@@ -49,7 +50,6 @@ from .models.time_series import (
     TimeSeriesStyle,
     TimeSeriesPresentation,
     buildTimeSeriesData,
-    randomTimeSeriesColor,
 )
 
 _UNSET = object()
@@ -492,7 +492,6 @@ class PlotTs():
         self._residual_legend = None
         self._main_legend_overlay = None
         self._residual_legend_overlay = None
-        self.random_marker_color_flag = False
         self.parms = {}
         if settings_model is None or user_preferences is None:
             raise ValueError(
@@ -1209,11 +1208,14 @@ class PlotTs():
             dates = source_data.dates if dates is None else dates
             ts_values = source_data.ts_values if ts_values is None else ts_values
             ref_values = source_data.ref_values if ref_values is _UNSET else ref_values
-            random_marker_color_flag = False
             presentation = source_snapshot.presentation
         else:
-            random_marker_color_flag = self.random_marker_color_flag
             presentation = self.default_style.snapshotPresentation()
+            presentation = apply_auto_color_to_new_series(
+                presentation,
+                self._series_store.records(),
+                enabled=self.settings_model.creation.auto_color_new_series,
+            )
 
         if dates is None and self.dates is None:
             return
@@ -1226,17 +1228,6 @@ class PlotTs():
         )
         if not series.hasFinitePlotValues():
             return
-
-        if random_marker_color_flag:
-            rand_color = randomTimeSeriesColor()
-            presentation = replace(
-                presentation,
-                series=replace(
-                    presentation.series,
-                    marker_color=rand_color,
-                    line_color=rand_color,
-                ),
-            )
 
         record_analysis = _UNSET if update or analysis is None else analysis
         # explicit update actions may omit one spatial field.  Preserve all

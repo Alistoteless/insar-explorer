@@ -40,6 +40,7 @@ class TimeSeriesToolbar(QToolBar):
     fitModelChanged = pyqtSignal(str)
     seasonalEnabledChanged = pyqtSignal(bool)
     residualPlotEnabledChanged = pyqtSignal(bool)
+    autoColorNewSeriesChanged = pyqtSignal(bool)
     xAxisModeChanged = pyqtSignal(str)
     manualXAxisEditRequested = pyqtSignal()
     yAxisModeChanged = pyqtSignal(str)
@@ -279,6 +280,22 @@ class TimeSeriesToolbar(QToolBar):
         self.legend_button.setSecondaryAccessibleName("Plot legend settings")
         self.legend_button.setSecondaryToolTip("Plot legend settings")
 
+        self.auto_color_button = QToolButton(self)
+        self.auto_color_button.setObjectName("tool_ts_auto_color_new_series")
+        set_toolbar_control_role(self.auto_color_button, "toggle")
+        self.auto_color_button.setIcon(themed_icon("color_rainbow"))
+        self.auto_color_button.setIconSize(self.iconSize())
+        self.auto_color_button.setCheckable(True)
+        self.auto_color_button.setToolButtonStyle(TOOL_BUTTON_ICON_ONLY)
+        self.auto_color_button.setAccessibleName("Auto-color new series")
+        self.auto_color_button.setAccessibleDescription(
+            "Assign the next available distinct color to newly created time series and their ensembles."
+        )
+        self.auto_color_button.setToolTip(
+            "Auto-color new series\nAssign the next available distinct color to new time series and their ensembles."
+        )
+        self.auto_color_button.setStatusTip("Auto-color new series")
+
         self.residual_plot_button = QToolButton(self)
         self.residual_plot_button.setObjectName("tool_ts_residual_plot")
         set_toolbar_control_role(self.residual_plot_button, "toggle")
@@ -345,6 +362,7 @@ class TimeSeriesToolbar(QToolBar):
         self.hover_readout.setText("")
         self.addWidget(self.hover_readout)
 
+        self.addWidget(self.auto_color_button)
         self.addWidget(self.legend_button)
         self.addWidget(self.residual_plot_button)
         self.addWidget(self.x_axis_button)
@@ -381,6 +399,7 @@ class TimeSeriesToolbar(QToolBar):
         self.legend_button.primaryToggled.connect(self.legendEnabledChanged.emit)
         self.legend_button.secondaryTriggered.connect(self.legendSettingsRequested.emit)
         self.residual_plot_button.toggled.connect(self.residualPlotEnabledChanged.emit)
+        self.auto_color_button.toggled.connect(self.autoColorNewSeriesChanged.emit)
 
     def setHoverReadout(self, text):
         """Update the secondary time-series hover readout text."""
@@ -435,6 +454,15 @@ class TimeSeriesToolbar(QToolBar):
         """Update Seasonal metadata without emitting a user-change signal."""
         self._seasonal_enabled = bool(enabled)
         self._updateFitMetadata()
+
+    def setAutoColorNewSeriesEnabled(self, enabled):
+        """Update the global creation-mode toggle without emitting a user change."""
+        enabled = bool(enabled)
+        previous = self.auto_color_button.blockSignals(True)
+        try:
+            self.auto_color_button.setChecked(enabled)
+        finally:
+            self.auto_color_button.blockSignals(previous)
 
     def setResidualPlotEnabled(self, enabled):
         """Update the plot-level Residual toggle without emitting a user change."""

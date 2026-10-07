@@ -15,6 +15,7 @@
     <file alias="bookmark_set.svg">icons/light/bookmark_set.svg</file>
     <file alias="bookmark_star.svg">icons/light/bookmark_star.svg</file>
     <file alias="clipboard.svg">icons/light/clipboard.svg</file>
+    <file alias="color_rainbow.svg">icons/light/color_rainbow.svg</file>
     <file alias="copy_content.svg">icons/light/copy_content.svg</file>
     <file alias="delete.svg">icons/light/delete.svg</file>
     <file alias="edit.svg">icons/light/edit.svg</file>
@@ -69,6 +70,7 @@
     <file alias="bookmark_set.svg">icons/dark/bookmark_set.svg</file>
     <file alias="bookmark_star.svg">icons/dark/bookmark_star.svg</file>
     <file alias="clipboard.svg">icons/dark/clipboard.svg</file>
+    <file alias="color_rainbow.svg">icons/dark/color_rainbow.svg</file>
     <file alias="copy_content.svg">icons/dark/copy_content.svg</file>
     <file alias="delete.svg">icons/dark/delete.svg</file>
     <file alias="edit.svg">icons/dark/edit.svg</file>

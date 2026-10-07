@@ -9,6 +9,7 @@ from ..settings.model import (
     AppearanceSettings, EnsembleStyleSettings, ExportSettings, FitAnalysisDefaults,
     FitStyleSettings, LegendEntryDefaults, LegendSettings, RelatedLegendDefaults, ReplicaAnalysisDefaults,
     ReplicaSettings, ResidualPlotSettings, ResidualStyleSettings, SeriesStyleSettings,
+    TimeSeriesCreationSettings,
 )
 
 
@@ -23,6 +24,7 @@ class TimeSeriesUserPreferences:
     replica_defaults: ReplicaSettings = field(default_factory=ReplicaSettings)
     fit_analysis_defaults: FitAnalysisDefaults = field(default_factory=FitAnalysisDefaults)
     residual_plot: ResidualPlotSettings = field(default_factory=ResidualPlotSettings)
+    creation: TimeSeriesCreationSettings = field(default_factory=TimeSeriesCreationSettings)
     replica_analysis_defaults: ReplicaAnalysisDefaults = field(default_factory=ReplicaAnalysisDefaults)
     appearance: AppearanceSettings = field(default_factory=AppearanceSettings)
     export: ExportSettings = field(default_factory=ExportSettings)
@@ -69,6 +71,9 @@ class UserPreferencesRepository(Protocol):
         ...
 
     def save_residual_plot(self, settings: ResidualPlotSettings) -> None:
+        ...
+
+    def save_creation(self, settings: TimeSeriesCreationSettings) -> None:
         ...
 
     def save_replica_analysis_defaults(self, settings: ReplicaAnalysisDefaults) -> None:

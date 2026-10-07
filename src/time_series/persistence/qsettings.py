@@ -21,9 +21,10 @@ from ..settings.model import (
     ResidualPlotSettings,
     ResidualStyleSettings,
     SeriesStyleSettings,
+    TimeSeriesCreationSettings,
 )
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 DEFAULT_PREFIX = "insar_explorer/time_series"
 
 
@@ -150,6 +151,7 @@ KEY_SPECS = (
      ("poly-1", "poly-2", "poly-3", "exp", "log")),
     ("fit_analysis_defaults", "seasonal", "analysis_defaults/fit/seasonal", "bool", None),
     ("residual_plot", "enabled", "residual_plot/enabled", "bool", None),
+    ("creation", "auto_color_new_series", "auto_color_new_series", "bool", None),
     ("replica_analysis_defaults", "enabled", "analysis_defaults/replica/enabled", "bool", None),
     ("replica_analysis_defaults", "pair_count", "analysis_defaults/replica/pair_count", "int", (1, 10)),
     ("replica_analysis_defaults", "interval_mm", "analysis_defaults/replica/interval_mm", "float", (0.1, 10000)),
@@ -195,6 +197,7 @@ _SCOPE_TYPES = {
     "replica_defaults": ReplicaSettings,
     "fit_analysis_defaults": FitAnalysisDefaults,
     "residual_plot": ResidualPlotSettings,
+    "creation": TimeSeriesCreationSettings,
     "replica_analysis_defaults": ReplicaAnalysisDefaults,
     "appearance": AppearanceSettings,
     "export": ExportSettings,
@@ -376,6 +379,9 @@ class QSettingsUserPreferencesRepository:
 
     def save_residual_plot(self, settings: ResidualPlotSettings) -> None:
         self.save_scope("residual_plot", settings)
+
+    def save_creation(self, settings: TimeSeriesCreationSettings) -> None:
+        self.save_scope("creation", settings)
 
     def save_replica_analysis_defaults(self, settings: ReplicaAnalysisDefaults) -> None:
         self.save_scope("replica_analysis_defaults", settings)

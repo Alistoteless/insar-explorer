@@ -359,6 +359,18 @@ class ResidualPlotSettings:
 
 
 @dataclass(frozen=True)
+class TimeSeriesCreationSettings:
+    """Persistent workflow preferences applied only when creating new series."""
+
+    auto_color_new_series: bool = True
+
+    def __post_init__(self):
+        object.__setattr__(
+            self, "auto_color_new_series", bool(self.auto_color_new_series)
+        )
+
+
+@dataclass(frozen=True)
 class ReplicaAnalysisDefaults:
     """User defaults copied into Replica configuration for future records only."""
 
@@ -837,6 +849,7 @@ class TimeSeriesSettingsModel:
     replica: ReplicaSettings = field(default_factory=ReplicaSettings)
     fit_analysis_defaults: FitAnalysisDefaults = field(default_factory=FitAnalysisDefaults)
     residual_plot: ResidualPlotSettings = field(default_factory=ResidualPlotSettings)
+    creation: TimeSeriesCreationSettings = field(default_factory=TimeSeriesCreationSettings)
     replica_analysis_defaults: ReplicaAnalysisDefaults = field(default_factory=ReplicaAnalysisDefaults)
     y_axis: YAxisSettings = field(default_factory=YAxisSettings)
     x_axis: XAxisSettings = field(default_factory=XAxisSettings)
@@ -915,6 +928,7 @@ class TimeSeriesSettingsModel:
             },
             "fit_analysis_defaults": asdict(self.fit_analysis_defaults),
             "residual_plot": asdict(self.residual_plot),
+            "creation": asdict(self.creation),
             "replica_analysis_defaults": asdict(self.replica_analysis_defaults),
             "appearance": asdict(self.appearance),
             "export": asdict(self.export),
@@ -926,4 +940,5 @@ class TimeSeriesSettingsModel:
         return TimeSeriesSettingsModel(**{name: deepcopy(getattr(self, name)) for name in (
             "series_defaults", "fit_defaults", "residual_defaults", "fit_current",
             "residual_current", "ensemble_defaults", "replica", "fit_analysis_defaults",
-            "residual_plot", "replica_analysis_defaults", "y_axis", "x_axis", "appearance", "export", "legend")})
+            "residual_plot", "creation", "replica_analysis_defaults", "y_axis", "x_axis",
+            "appearance", "export", "legend")})
