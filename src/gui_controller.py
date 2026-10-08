@@ -4219,18 +4219,25 @@ class GuiController(QObject):
             self._syncTimeSeriesYAxisControls()
             return
         if self._manual_y_axis_session is not None:
-            self.manual_y_axis_popup.show(); self.manual_y_axis_popup.raise_(); self.manual_y_axis_popup.activateWindow(); return
+            self.manual_y_axis_popup.show()
+            self.manual_y_axis_popup.raise_()
+            self.manual_y_axis_popup.activateWindow()
+            return
         state = self.time_series_settings.y_axis
         manuals = {name: getattr(state, f"{name}_manual") for name in availability}
         data = {name: plotter.dataYAxisRangeForDomain(name) for name in availability}
         self._manual_y_axis_session = {"y_axis": state, "viewport": plotter.captureViewport()}
         self.manual_y_axis_popup.openForDomains(manuals, data, availability)
-        popup = self.manual_y_axis_popup; popup.adjustSize()
+        popup = self.manual_y_axis_popup
+        popup.adjustSize()
         button = self.ui.time_series_toolbar.y_axis_button
-        top_left = button.mapToGlobal(QPoint(0, 0)); anchor = QRect(top_left, button.size())
+        top_left = button.mapToGlobal(QPoint(0, 0))
+        anchor = QRect(top_left, button.size())
         geometry = available_screen_geometry(top_left, popup)
         popup.move(screen_aware_popup_position(anchor, popup.sizeHint(), geometry))
-        popup.show(); popup.raise_(); popup.activateWindow()
+        popup.show()
+        popup.raise_()
+        popup.activateWindow()
 
     def captureCurrentManualYAxisView(self, axis_name):
         """Copy one current domain viewport into the popup draft without committing it."""
@@ -4264,7 +4271,8 @@ class GuiController(QObject):
             return
         state = self.time_series_settings.y_axis
         for domain in changed:
-            values = payload[domain]; lower, upper = values["bounds"]
+            values = payload[domain]
+            lower, upper = values["bounds"]
             manual = AxisManualRange(
                 lower, upper, *values["retained"], configured=True
             )

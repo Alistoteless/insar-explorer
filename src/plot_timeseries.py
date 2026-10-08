@@ -929,6 +929,7 @@ class PlotTs():
         plot_item.getAxis("right").linkToView(secondary)
         primary.sigResized.connect(secondary.syncGeometry)
         secondary._resize_signal_connected = True
+
         def sync_y_interaction(mask):
             self._handleManualRangeChange(primary, mask, residual=residual)
 
@@ -2008,7 +2009,6 @@ class PlotTs():
     def setGrid(self, ax=None, parms={}):
         if not ax:
             ax = self.ax
-        grid_type = parms['grid']
         self._applyAutomaticGridContrast(ax, parms['background color'])
         self._applyGridOwnership()
 
@@ -3124,7 +3124,6 @@ class PlotTs():
             "right_residual": [],
         }
         for record in self.visibleTimeSeriesRecords():
-            data = record.data
             side = record.presentation.y_axis_side
             main_domain = "right_series" if side == "right" else "series"
             residual_domain = "right_residual" if side == "right" else "residual"
