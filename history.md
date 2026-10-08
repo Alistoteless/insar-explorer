@@ -8,6 +8,7 @@ v2.13.0.dev
 - Added optional per-series Replica rendering in the residual subplot.
 - Added optional automatic distinct colors for new time series.
 - Extended distinct-color assignment to Ensemble styling.
+- Show marker-color in the selection list.
 
 v2.12.0
 

@@ -40,8 +40,9 @@ from ...qt_compat import (
 )
 
 from .committed_columns import (
-    COMMITTED_SEQUENCE_COLUMN_WIDTH, COMMITTED_VISIBLE_COLUMN_WIDTH,
-    COMMITTED_Y_AXIS_COLUMN_WIDTH, CommittedTimeSeriesColumn,
+    COMMITTED_COLOR_COLUMN_WIDTH, COMMITTED_SEQUENCE_COLUMN_WIDTH,
+    COMMITTED_VISIBLE_COLUMN_WIDTH, COMMITTED_Y_AXIS_COLUMN_WIDTH,
+    CommittedTimeSeriesColumn,
 )
 from .committed_model import CommittedTimeSeriesModel
 from .committed_view import CommittedTimeSeriesView
@@ -508,12 +509,18 @@ class TimeSeriesPointPanel(QtWidgets.QWidget):
         selection_model = self.committed_view.selectionModel()
         selection_model.selectionChanged.connect(self._emit_committed_selection)
         header = self.committed_view.horizontalHeader()
+        if header.minimumSectionSize() > COMMITTED_COLOR_COLUMN_WIDTH:
+            header.setMinimumSectionSize(COMMITTED_COLOR_COLUMN_WIDTH)
+        header.setSectionResizeMode(CommittedTimeSeriesColumn.COLOR, HEADER_FIXED)
         header.setSectionResizeMode(CommittedTimeSeriesColumn.VISIBLE, HEADER_FIXED)
         header.setSectionResizeMode(CommittedTimeSeriesColumn.SEQUENCE, HEADER_FIXED)
         header.setSectionResizeMode(CommittedTimeSeriesColumn.LABEL, HEADER_STRETCH)
         header.setSectionResizeMode(CommittedTimeSeriesColumn.Y_AXIS, HEADER_FIXED)
         header.setSectionResizeMode(CommittedTimeSeriesColumn.TARGET, HEADER_FIXED)
         header.setSectionResizeMode(CommittedTimeSeriesColumn.REFERENCE, HEADER_FIXED)
+        self.committed_view.setColumnWidth(
+            CommittedTimeSeriesColumn.COLOR, COMMITTED_COLOR_COLUMN_WIDTH
+        )
         self.committed_view.setColumnWidth(
             CommittedTimeSeriesColumn.VISIBLE, COMMITTED_VISIBLE_COLUMN_WIDTH
         )
@@ -522,6 +529,9 @@ class TimeSeriesPointPanel(QtWidgets.QWidget):
         )
         self.committed_view.setColumnWidth(
             CommittedTimeSeriesColumn.Y_AXIS, COMMITTED_Y_AXIS_COLUMN_WIDTH
+        )
+        self.committed_view.setItemDelegateForColumn(
+            CommittedTimeSeriesColumn.COLOR, self.committed_type_indicator_delegate
         )
         self.committed_view.setItemDelegateForColumn(
             CommittedTimeSeriesColumn.Y_AXIS, self.committed_type_indicator_delegate

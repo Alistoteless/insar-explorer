@@ -6,7 +6,7 @@ from qgis.PyQt.QtCore import QAbstractTableModel, QModelIndex, pyqtSignal
 from ...qt_compat import (
     ACCESSIBLE_DESCRIPTION_ROLE, ACCESSIBLE_TEXT_ROLE, ALIGN_CENTER, ALIGN_LEFT,
     ALIGN_VCENTER, CHECK_STATE_ROLE, CHECKED, DECORATION_ROLE, DISPLAY_ROLE,
-    EDIT_ROLE, FONT_ROLE, FOREGROUND_ROLE,
+    BACKGROUND_ROLE, EDIT_ROLE, FONT_ROLE, FOREGROUND_ROLE,
     HORIZONTAL, ITEM_IS_EDITABLE, ITEM_IS_ENABLED, ITEM_IS_SELECTABLE,
     ITEM_IS_USER_CHECKABLE, TEXT_ALIGNMENT_ROLE, TOOLTIP_ROLE, UNCHECKED,
 )
@@ -25,6 +25,7 @@ class CommittedTimeSeriesModel(QAbstractTableModel):
     labelEdited = pyqtSignal(object, str)
 
     _HEADERS = {
+        CommittedTimeSeriesColumn.COLOR: "",
         CommittedTimeSeriesColumn.VISIBLE: "",
         CommittedTimeSeriesColumn.SEQUENCE: "#",
         CommittedTimeSeriesColumn.LABEL: "Label",
@@ -33,6 +34,7 @@ class CommittedTimeSeriesModel(QAbstractTableModel):
         CommittedTimeSeriesColumn.REFERENCE: "R",
     }
     _HEADER_TOOLTIPS = {
+        CommittedTimeSeriesColumn.COLOR: "Time-series marker color",
         CommittedTimeSeriesColumn.VISIBLE: "Show or hide all time series",
         CommittedTimeSeriesColumn.SEQUENCE: "Time-series sequence number",
         CommittedTimeSeriesColumn.LABEL: "Time-series label",
@@ -85,6 +87,27 @@ class CommittedTimeSeriesModel(QAbstractTableModel):
         entries = self._list_state.entries()
         return len(entries), sum(1 for entry in entries if entry.visible)
 
+    @staticmethod
+    def _marker_identity_brush(record):
+        """Return the active Series marker-colour brush for the identity strip.
+
+        The colour strip is a read-only projection of the authoritative Series
+        marker presentation. It is intentionally absent while the marker is
+        visually inactive or when legacy colour data cannot be parsed.
+        """
+        series = record.presentation.series
+        try:
+            marker_size = float(getattr(series, "marker_size", 0.0))
+            marker_opacity = float(getattr(series, "marker_opacity", 0.0))
+        except (TypeError, ValueError):
+            return None
+        if marker_size <= 0.0 or marker_opacity <= 0.0:
+            return None
+
+        marker_color = getattr(series, "marker_color", None)
+        color = QtGui.QColor(str(marker_color or ""))
+        return QtGui.QBrush(color) if color.isValid() else None
+
     def data(self, index, role=DISPLAY_ROLE):
         if not index.isValid():
             return None
@@ -95,6 +118,10 @@ class CommittedTimeSeriesModel(QAbstractTableModel):
         if record is None:
             return None
         column = CommittedTimeSeriesColumn(index.column())
+        if column == CommittedTimeSeriesColumn.COLOR:
+            if role == BACKGROUND_ROLE:
+                return self._marker_identity_brush(record)
+            return None
         if column == CommittedTimeSeriesColumn.VISIBLE:
             if role == CHECK_STATE_ROLE:
                 return CHECKED if entry.visible else UNCHECKED

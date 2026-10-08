@@ -51,6 +51,11 @@ time series. The **Y** column shows whether each stored time series is assigned
 to the Left or Right Y axis using the corresponding axis icon. The icon is
 informational; change the assignment with **Y axis** in the time-series toolbar.
 
+A narrow color strip at the left of each committed row uses that time series'
+marker color as a compact visual identity cue. If the
+marker has zero size or zero opacity, the strip returns to the normal list
+background.
+
 Rename, remove, and copy settings
 ---------------------------------
 
