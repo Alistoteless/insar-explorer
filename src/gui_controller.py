@@ -1709,9 +1709,24 @@ class GuiController(QObject):
         self.export_settings_popup.applyFactoryDefaultRequested.connect(self.applyFactoryExportDefaults)
         self.export_settings_popup.saveCurrentAsDefaultRequested.connect(self.setCurrentExportAsDefault)
         self.appearance_popup.settingsChanged.connect(self.updateAppearanceSettings)
-        self.appearance_popup.applySavedDefaultRequested.connect(self.restoreAppearanceDefaults)
-        self.appearance_popup.applyFactoryDefaultRequested.connect(self.applyFactoryAppearanceDefaults)
-        self.appearance_popup.saveCurrentAsDefaultRequested.connect(self.setCurrentAppearanceAsDefault)
+        self.appearance_popup.applySavedTextAxesDefaultRequested.connect(
+            self.restoreAppearanceTextAxesDefaults
+        )
+        self.appearance_popup.applyFactoryTextAxesDefaultRequested.connect(
+            self.applyFactoryAppearanceTextAxesDefaults
+        )
+        self.appearance_popup.saveCurrentTextAxesAsDefaultRequested.connect(
+            self.setCurrentAppearanceTextAxesAsDefault
+        )
+        self.appearance_popup.applySavedPlotStyleDefaultRequested.connect(
+            self.restoreAppearancePlotStyleDefaults
+        )
+        self.appearance_popup.applyFactoryPlotStyleDefaultRequested.connect(
+            self.applyFactoryAppearancePlotStyleDefaults
+        )
+        self.appearance_popup.saveCurrentPlotStyleAsDefaultRequested.connect(
+            self.setCurrentAppearancePlotStyleAsDefault
+        )
         self.replica_popup.settingsChanged.connect(self.updateReplicaCoreSettings)
         self.replica_popup.showInResidualChanged.connect(
             self.setReplicaShowInResidual
@@ -2860,28 +2875,58 @@ class GuiController(QObject):
         plotter.refreshCompatibilityViews()
         self.syncAppearancePopup()
 
-    def restoreAppearanceDefaults(self):
-        """Restore Appearance controls from the currently persisted defaults."""
+    def _applyAppearanceDefaults(self, defaults, *, text_axes):
+        """Apply only one Appearance tab's fields from ``defaults``."""
         plotter = self.choose_point_click_handler.plot_ts
-        defaults = plotter.user_preferences.load().appearance
-        plotter.settings_model.replace_domain("appearance", defaults)
+        current = plotter.settings_model.appearance
+        settings = (
+            current.with_text_axes_from(defaults)
+            if text_axes else current.with_plot_style_from(defaults)
+        )
+        plotter.settings_model.replace_domain("appearance", settings)
         plotter.refreshCompatibilityViews()
         self.syncAppearancePopup()
 
-    def setCurrentAppearanceAsDefault(self):
-        """Persist an Appearance snapshot without changing current controls."""
-        settings = self.choose_point_click_handler.plot_ts.settings_model.appearance
+    def restoreAppearanceTextAxesDefaults(self):
+        """Restore only Text & axes fields from the persisted Appearance defaults."""
+        plotter = self.choose_point_click_handler.plot_ts
+        self._applyAppearanceDefaults(plotter.user_preferences.load().appearance, text_axes=True)
+
+    def restoreAppearancePlotStyleDefaults(self):
+        """Restore only Plot style fields from the persisted Appearance defaults."""
+        plotter = self.choose_point_click_handler.plot_ts
+        self._applyAppearanceDefaults(plotter.user_preferences.load().appearance, text_axes=False)
+
+    def _saveCurrentAppearanceTabAsDefault(self, *, text_axes):
+        """Persist only one tab's current values while preserving other saved defaults."""
+        plotter = self.choose_point_click_handler.plot_ts
+        current = plotter.settings_model.appearance
+        saved = plotter.user_preferences.load().appearance
+        settings = (
+            saved.with_text_axes_from(current)
+            if text_axes else saved.with_plot_style_from(current)
+        )
+        label = "Text & axes" if text_axes else "Plot style"
         self._saveUserPreferences(
-            lambda: self.choose_point_click_handler.plot_ts.user_preferences.save_appearance(settings),
-            "Current appearance saved as default.",
+            lambda: plotter.user_preferences.save_appearance(settings),
+            f"Current {label} appearance saved as default.",
         )
 
-    def applyFactoryAppearanceDefaults(self):
-        """Apply canonical built-in Appearance values without changing saved defaults."""
-        plotter = self.choose_point_click_handler.plot_ts
-        plotter.settings_model.replace_domain("appearance", AppearanceSettings())
-        plotter.refreshCompatibilityViews()
-        self.syncAppearancePopup()
+    def setCurrentAppearanceTextAxesAsDefault(self):
+        """Persist the current Text & axes values without replacing Plot style defaults."""
+        self._saveCurrentAppearanceTabAsDefault(text_axes=True)
+
+    def setCurrentAppearancePlotStyleAsDefault(self):
+        """Persist the current Plot style values without replacing Text & axes defaults."""
+        self._saveCurrentAppearanceTabAsDefault(text_axes=False)
+
+    def applyFactoryAppearanceTextAxesDefaults(self):
+        """Apply factory Text & axes values while preserving current Plot style values."""
+        self._applyAppearanceDefaults(AppearanceSettings(), text_axes=True)
+
+    def applyFactoryAppearancePlotStyleDefaults(self):
+        """Apply factory Plot style values while preserving current Text & axes values."""
+        self._applyAppearanceDefaults(AppearanceSettings(), text_axes=False)
 
     def showAppearancePopup(self):
         """Open the anchored Appearance editor initialized from runtime state."""

@@ -9,6 +9,7 @@ v2.13.0.dev
 - Added optional automatic distinct colors for new time series.
 - Extended distinct-color assignment to Ensemble styling.
 - Show marker-color in the selection list.
+- Reorganized the Time Series Appearance popup into two tabs.
 
 v2.12.0
 

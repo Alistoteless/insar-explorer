@@ -709,6 +709,16 @@ class AppearanceSettings:
     date_format: Optional[str] = "%Y-%m-%d"
 
     GRID_MODES: ClassVar[tuple] = ("both", "horizontal", "vertical", "none")
+    TEXT_AXES_FIELDS: ClassVar[tuple] = (
+        "time_series_title", "residual_title",
+        "time_series_x_label", "residual_x_label",
+        "time_series_y_label", "right_y_label",
+        "residual_y_label", "residual_right_y_label",
+        "date_format",
+    )
+    PLOT_STYLE_FIELDS: ClassVar[tuple] = (
+        "font_size", "grid_mode", "plot_background", "canvas_background",
+    )
 
     def __post_init__(self):
         """Normalize the canonical grid mode without introducing a Boolean alias."""
@@ -720,6 +730,18 @@ class AppearanceSettings:
     def normalize_grid_mode(cls, value):
         """Return one supported canonical grid mode, defaulting invalid values to both."""
         return value if value in cls.GRID_MODES else "both"
+
+    def with_fields_from(self, source, fields):
+        """Return this Appearance value with only ``fields`` copied from ``source``."""
+        return replace(self, **{name: getattr(source, name) for name in fields})
+
+    def with_text_axes_from(self, source):
+        """Return this Appearance value with Text & axes fields copied from ``source``."""
+        return self.with_fields_from(source, self.TEXT_AXES_FIELDS)
+
+    def with_plot_style_from(self, source):
+        """Return this Appearance value with Plot style fields copied from ``source``."""
+        return self.with_fields_from(source, self.PLOT_STYLE_FIELDS)
 
 
 @dataclass(frozen=True)
