@@ -74,14 +74,11 @@ Configure the plot
 Appearance
 ----------
 
-The time-series toolbar separates per-series controls from plot-level controls.
-Use **Style**, **Fit**, **Replica**, **Y axis**, and **Legend entry** for the
-selected or pending time series. Use **Plot legend**, **Residual plot**,
-**X range**, **Y range**, **Appearance**, and **Export** for the plot as a whole.
-
-Appearance also provides independent labels for **Main left Y**, **Main right Y**,
-**Residual left Y**, and **Residual right Y**. A label for an inactive axis is
-preserved and appears again when that axis becomes active.
+The time-series toolbar groups controls by scope. Use **Style**, **Fit**,
+**Replica**, **Y axis**, and **Legend entry** for the selected or pending time
+series. **Auto-color new series** is a separate creation policy for future
+series. **Plot legend**, **Residual plot**, **X range**, **Y range**, and
+**Appearance** affect the plot, while **Export** is the final output action.
 
 Style
 -----
@@ -187,6 +184,10 @@ plots. Left and Right Y axes keep independent ranges. Available modes include
 **Data range**, **Symmetric**, and **Manual**. Manual ranges are remembered
 separately for **Main left Y**, **Main right Y**, **Residual left Y**, and
 **Residual right Y**.
+
+The manual Y-range editor groups these four independent ranges into two tabs.
+**Main** contains separate **Left axis** and **Right axis** editors, and
+**Residual** contains separate **Left axis** and **Right axis** editors.
 
 When a saved Manual range exists for an active axis, choosing **Manual**
 restores that range. If no active axis has a saved Manual range yet, the range
