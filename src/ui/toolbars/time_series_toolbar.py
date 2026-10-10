@@ -283,7 +283,7 @@ class TimeSeriesToolbar(QToolBar):
         self.auto_color_button = QToolButton(self)
         self.auto_color_button.setObjectName("tool_ts_auto_color_new_series")
         set_toolbar_control_role(self.auto_color_button, "toggle")
-        self.auto_color_button.setIcon(themed_icon("color_rainbow"))
+        self.auto_color_button.setIcon(themed_icon("color_wheel"))
         self.auto_color_button.setIconSize(self.iconSize())
         self.auto_color_button.setCheckable(True)
         self.auto_color_button.setToolButtonStyle(TOOL_BUTTON_ICON_ONLY)
