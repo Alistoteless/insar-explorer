@@ -10,6 +10,7 @@ v2.13.0.dev
 - Extended distinct-color assignment to Ensemble styling.
 - Show marker-color in the selection list.
 - Reorganized the Time Series Appearance popup into two tabs.
+- Reorganized manual Y-range controls into Main and Residual tabs.
 
 v2.12.0
 
