@@ -263,7 +263,7 @@ class TimeSeriesToolbar(QToolBar):
             primary_checkable=True,
             parent=self,
             object_name="tool_ts_legend",
-            arrow_side=SplitToolButton.Left,
+            arrow_side=SplitToolButton.Right,
         )
         self.legend_button.setIconSize(self.iconSize())
         self.legend_button.setPrimaryAccessibleName("Plot legend")
@@ -289,10 +289,13 @@ class TimeSeriesToolbar(QToolBar):
         self.auto_color_button.setToolButtonStyle(TOOL_BUTTON_ICON_ONLY)
         self.auto_color_button.setAccessibleName("Auto-color new series")
         self.auto_color_button.setAccessibleDescription(
-            "Assign the next available distinct color to newly created time series and their ensembles."
+            "Automatically assign distinct colors to newly created time series. "
+            "Does not change existing series."
         )
         self.auto_color_button.setToolTip(
-            "Auto-color new series\nAssign the next available distinct color to new time series and their ensembles."
+            "Auto-color new series\n"
+            "Automatically assign distinct colors to newly created time series.\n"
+            "Does not change existing series."
         )
         self.auto_color_button.setStatusTip("Auto-color new series")
 
@@ -315,7 +318,7 @@ class TimeSeriesToolbar(QToolBar):
             primary_checkable=False,
             parent=self,
             object_name="tool_ts_plot_export",
-            arrow_side=SplitToolButton.Left,
+            arrow_side=SplitToolButton.Right,
             visual_role=SplitToolButton.Command,
         )
         self.plot_export_button.setIconSize(self.iconSize())
@@ -337,12 +340,22 @@ class TimeSeriesToolbar(QToolBar):
         )
         self.plot_export_button.setPrimaryEnabled(False)
         self.addAction(self.plot_style_action)
-        self.addSeparator()
         self.addWidget(self.fit_button)
         self.addWidget(self.replica_button)
         self.addWidget(self.series_y_axis_button)
-        self.addSeparator()
         self.addAction(self.legend_entry_action)
+        self._series_creation_space_before = self._addFixedSpace(
+            "timeSeriesAutoColorBoundarySpaceBefore", 6
+        )
+        self._series_creation_separator = self.addSeparator()
+        self._series_creation_space_after = self._addFixedSpace(
+            "timeSeriesAutoColorBoundarySpaceAfter", 6
+        )
+        self.addWidget(self.auto_color_button)
+        self._creation_plot_space_before = self._addFixedSpace(
+            "timeSeriesAutoColorPlotBoundarySpaceBefore", 6
+        )
+        self._creation_plot_separator = self.addSeparator()
 
         self._spacer_widget = QWidget(self)
         self._spacer_widget.setObjectName("timeSeriesToolbarSpacer")
@@ -362,13 +375,12 @@ class TimeSeriesToolbar(QToolBar):
         self.hover_readout.setText("")
         self.addWidget(self.hover_readout)
 
-        self.addWidget(self.auto_color_button)
         self.addWidget(self.legend_button)
         self.addWidget(self.residual_plot_button)
         self.addWidget(self.x_axis_button)
         self.addWidget(self.y_axis_button)
         self.addAction(self.appearance_action)
-        self.addSeparator()
+        self._export_separator = self.addSeparator()
         self.addWidget(self.plot_export_button)
 
         for action in (
@@ -610,6 +622,14 @@ class TimeSeriesToolbar(QToolBar):
             "Toggle Replica. Use the arrow for settings. " + description
         )
         self.replica_button.setStatusTip(description)
+
+    def _addFixedSpace(self, object_name, width):
+        """Add one fixed-width spacer widget and return it for semantic tests."""
+        spacer = QWidget(self)
+        spacer.setObjectName(object_name)
+        spacer.setFixedWidth(int(width))
+        self.addWidget(spacer)
+        return spacer
 
     def _setActionControlRole(self, action, role):
         """Assign a semantic role to the tool button generated for an action."""
