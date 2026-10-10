@@ -380,7 +380,13 @@ class TimeSeriesToolbar(QToolBar):
         self.addWidget(self.x_axis_button)
         self.addWidget(self.y_axis_button)
         self.addAction(self.appearance_action)
+        self._export_space_before = self._addFixedSpace(
+            "timeSeriesExportBoundarySpaceBefore", 6
+        )
         self._export_separator = self.addSeparator()
+        self._export_space_after = self._addFixedSpace(
+            "timeSeriesExportBoundarySpaceAfter", 6
+        )
         self.addWidget(self.plot_export_button)
 
         for action in (
