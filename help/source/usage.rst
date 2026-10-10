@@ -51,12 +51,22 @@ time series. The **Y** column shows whether each stored time series is assigned
 to the Left or Right Y axis using the corresponding axis icon. The icon is
 informational; change the assignment with **Y axis** in the time-series toolbar.
 
+A narrow color strip at the left of each committed row uses that time series'
+marker color as a compact visual identity cue. If the
+marker has zero size or zero opacity, the strip returns to the normal list
+background.
+
 Rename, remove, and copy settings
 ---------------------------------
 
 Use the selection list controls or context menu to rename or remove stored time
 series. Settings can be copied from one time series and pasted as **Style**,
-**Fit**, **Replica**, **Y axis,**, **Legend entry**, or **All** presentation settings.
+**Fit**, **Replica**, **Y axis**, **Legend entry**, or **All** presentation settings.
+
+Use **Assign distinct colors** on selected stored time series to apply deterministic
+palette colors. Each chosen color is used as the identity color for both the main
+Series marker/line and its Ensemble member/fill appearance. Existing opacity and
+other style settings are preserved.
 
 Configure the plot
 ==================
@@ -64,20 +74,34 @@ Configure the plot
 Appearance
 ----------
 
-The time-series toolbar separates per-series controls from plot-level controls.
-Use **Style**, **Fit**, **Replica**, **Y axis**, and **Legend entry** for the
-selected or pending time series. Use **Plot legend**, **X range**, **Y range**,
-**Appearance**, and **Export** for the plot as a whole.
-
-Appearance also provides independent labels for **Main left Y**, **Main right Y**,
-**Residual left Y**, and **Residual right Y**. A label for an inactive axis is
-preserved and appears again when that axis becomes active.
+The time-series toolbar groups controls by scope. Use **Style**, **Fit**,
+**Replica**, **Y axis**, and **Legend entry** for the selected or pending time
+series. **Auto-color new series** is a separate creation policy for future
+series. **Plot legend**, **Residual plot**, **X range**, **Y range**, and
+**Appearance** affect the plot, while **Export** is the final output action.
 
 Style
 -----
 
 Use **Style** to configure the appearance of the selected or pending time
-series.
+series. **Randomize Color** assigns one random identity color to the Series
+marker and line and to the Ensemble member line and fill. The individual color
+controls remain independently editable afterward.
+
+Auto-color new series
+---------------------
+
+**Auto-color new series** is an icon-only toolbar creation mode and is on by
+default. When enabled, each newly created time series receives the next available
+color from the existing distinct palette after normal Series and Ensemble defaults
+have been applied. The same base color is assigned to the Series marker and line
+and to the Ensemble member line and fill. All other saved style defaults are kept.
+
+Existing records are never recolored automatically. Deleting or manually recoloring
+a record can make a palette color available again for a future series. If all
+palette colors are already in use, colors are reused deterministically. The
+explicit **Assign distinct colors** action remains separate and recolors only the
+selected existing records.
 
 Legend entry
 ------------
@@ -120,8 +144,17 @@ Fit
 ---
 
 Use **Fit** to enable a fitted model for the current time series. The Fit menu
-selects the model and opens Fit settings, including fit and residual appearance.
-Residual display is available through the Fit controls when applicable.
+selects the model and opens Fit settings. Fit controls fitting only. It does not
+show or hide the residual subplot.
+
+Residual plot
+-------------
+
+Use the plot-level **Residual plot** button to show or hide the residual subplot
+independently from per-series Fit. The subplot can remain visible when no fitted
+series currently contributes residuals. When it is visible, each visible fitted
+time series with residual values contributes residual graphics on that series'
+assigned Left or Right Y axis.
 
 Replica
 -------
@@ -151,6 +184,10 @@ plots. Left and Right Y axes keep independent ranges. Available modes include
 **Data range**, **Symmetric**, and **Manual**. Manual ranges are remembered
 separately for **Main left Y**, **Main right Y**, **Residual left Y**, and
 **Residual right Y**.
+
+The manual Y-range editor groups these four independent ranges into two tabs.
+**Main** contains separate **Left axis** and **Right axis** editors, and
+**Residual** contains separate **Left axis** and **Right axis** editors.
 
 When a saved Manual range exists for an active axis, choosing **Manual**
 restores that range. If no active axis has a saved Manual range yet, the range

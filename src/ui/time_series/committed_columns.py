@@ -6,15 +6,17 @@ from enum import IntEnum
 class CommittedTimeSeriesColumn(IntEnum):
     """Fixed committed-list column order."""
 
-    VISIBLE = 0
-    SEQUENCE = 1
-    LABEL = 2
-    TARGET = 3
-    REFERENCE = 4
-    Y_AXIS = 5
+    COLOR = 0
+    VISIBLE = 1
+    SEQUENCE = 2
+    LABEL = 3
+    TARGET = 4
+    REFERENCE = 5
+    Y_AXIS = 6
 
 
 COMMITTED_COLUMN_COUNT = len(CommittedTimeSeriesColumn)
+COMMITTED_COLOR_COLUMN_WIDTH = 8
 COMMITTED_VISIBLE_COLUMN_WIDTH = 24
-COMMITTED_SEQUENCE_COLUMN_WIDTH = 38
-COMMITTED_Y_AXIS_COLUMN_WIDTH = 28
+COMMITTED_SEQUENCE_COLUMN_WIDTH = 28
+COMMITTED_Y_AXIS_COLUMN_WIDTH = 24

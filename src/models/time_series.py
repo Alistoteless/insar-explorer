@@ -158,25 +158,20 @@ class SpatialSelection:
 
 @dataclass(frozen=True)
 class FitConfiguration:
-    """Per-series fit and residual calculation configuration.
+    """Per-series fitting configuration.
 
-    Residual presentation is valid only while fitting is enabled.  Enforcing
-    that dependency here prevents invalid analysis state from entering the
-    record store through construction, compatibility, or controller paths.
+    Residual subplot visibility is plot-scoped and deliberately excluded from
+    this immutable per-record analysis state. Residual calculation eligibility
+    follows ``enabled``.
     """
 
     enabled: bool = False
     model: Optional[str] = None
     seasonal: bool = False
-    show_residuals: bool = False
 
     def __post_init__(self) -> None:
-        enabled = bool(self.enabled)
-        object.__setattr__(self, "enabled", enabled)
+        object.__setattr__(self, "enabled", bool(self.enabled))
         object.__setattr__(self, "seasonal", bool(self.seasonal))
-        object.__setattr__(
-            self, "show_residuals", enabled and bool(self.show_residuals)
-        )
 
 
 @dataclass(frozen=True)
@@ -186,6 +181,12 @@ class ReplicaConfiguration:
     enabled: bool = False
     interval_mm: float = 0.0
     pair_count: int = 0
+    show_in_residual: bool = False
+
+    def __post_init__(self) -> None:
+        """Normalize Boolean Replica feature flags at the record boundary."""
+        object.__setattr__(self, "enabled", bool(self.enabled))
+        object.__setattr__(self, "show_in_residual", bool(self.show_in_residual))
 
 
 @dataclass(frozen=True)
@@ -319,8 +320,18 @@ class DefaultTimeSeriesStyle:
         return cls(TimeSeriesStyle.fromParams(params))
 
     def snapshotPresentation(self) -> TimeSeriesPresentation:
-        """Return an immutable presentation snapshot for a newly created record."""
-        return replace(self._presentation)
+        """Return an immutable presentation snapshot for a newly created record.
+
+        Saved residual defaults are templates, not established per-record custom
+        state. Normalize their initialization semantics when a new record forks
+        from the template so Match-on records seed from their own series on first
+        unlink, while explicit Match-off custom defaults remain initialized.
+        """
+        presentation = replace(self._presentation)
+        return replace(
+            presentation,
+            residual=presentation.residual.for_default_application(),
+        )
 
     def snapshotStyle(self) -> TimeSeriesStyle:
         """Return a defensive compatibility projection."""
@@ -350,6 +361,8 @@ class TimeSeriesGraphics:
     plot_multiple_lines: List[Any] = field(default_factory=list)
     replicate_up: List[Any] = field(default_factory=list)
     replicate_dn: List[Any] = field(default_factory=list)
+    residual_replicate_up: List[Any] = field(default_factory=list)
+    residual_replicate_dn: List[Any] = field(default_factory=list)
     fit_plot: Any = None
     residual_scatter: Any = None
     residual_line: Any = None

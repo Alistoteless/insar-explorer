@@ -37,12 +37,12 @@ class StickyAnalysisDefaultsCoordinator:
                 enabled=fit.enabled,
                 model=fit.model,
                 seasonal=fit.seasonal,
-                show_residuals=fit.show_residuals,
             ),
             replica=ReplicaConfiguration(
                 enabled=replica.enabled,
                 pair_count=replica.pair_count,
                 interval_mm=replica.interval_mm,
+                show_in_residual=replica.show_in_residual,
             ),
         )
 
@@ -52,14 +52,12 @@ class StickyAnalysisDefaultsCoordinator:
         enabled: bool,
         model: str,
         seasonal: bool,
-        show_residuals: bool,
     ) -> FitAnalysisDefaults:
         """Normalize and persist fit defaults from one explicit user action."""
         defaults = FitAnalysisDefaults(
             enabled=enabled,
             model=model,
             seasonal=seasonal,
-            show_residuals=show_residuals,
         )
         self._settings_model.replace_domain("fit_analysis_defaults", defaults)
         self._notify_snapshot_changed()
@@ -75,12 +73,14 @@ class StickyAnalysisDefaultsCoordinator:
         enabled: bool,
         pair_count: int,
         interval_mm: float,
+        show_in_residual: bool,
     ) -> ReplicaAnalysisDefaults:
         """Normalize and persist Replica defaults from one explicit user action."""
         defaults = ReplicaAnalysisDefaults(
             enabled=enabled,
             pair_count=pair_count,
             interval_mm=interval_mm,
+            show_in_residual=show_in_residual,
         )
         self._settings_model.replace_domain("replica_analysis_defaults", defaults)
         self._notify_snapshot_changed()

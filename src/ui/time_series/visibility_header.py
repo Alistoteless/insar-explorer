@@ -4,6 +4,7 @@ from qgis.PyQt import QtWidgets
 from qgis.PyQt.QtCore import QRect, pyqtSignal
 
 from ...qt_compat import CHECKED, PARTIALLY_CHECKED, UNCHECKED
+from .committed_columns import CommittedTimeSeriesColumn
 
 
 class TimeSeriesVisibilityHeader(QtWidgets.QHeaderView):
@@ -25,7 +26,7 @@ class TimeSeriesVisibilityHeader(QtWidgets.QHeaderView):
 
     def paintSection(self, painter, rect, logical_index):
         super(TimeSeriesVisibilityHeader, self).paintSection(painter, rect, logical_index)
-        if logical_index != 0:
+        if logical_index != int(CommittedTimeSeriesColumn.VISIBLE):
             return
         option = QtWidgets.QStyleOptionButton()
         sub_element = getattr(getattr(QtWidgets.QStyle, "SubElement", QtWidgets.QStyle), "SE_CheckBoxIndicator")
@@ -47,6 +48,9 @@ class TimeSeriesVisibilityHeader(QtWidgets.QHeaderView):
         self.style().drawControl(control, option, painter, self)
 
     def _section_clicked(self, logical_index):
-        if logical_index != 0 or not self._has_records:
+        if (
+            logical_index != int(CommittedTimeSeriesColumn.VISIBLE)
+            or not self._has_records
+        ):
             return
         self.toggleAllRequested.emit(self._check_state == UNCHECKED)

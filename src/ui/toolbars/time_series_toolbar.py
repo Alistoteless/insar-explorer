@@ -39,7 +39,8 @@ class TimeSeriesToolbar(QToolBar):
     fitSettingsRequested = pyqtSignal()
     fitModelChanged = pyqtSignal(str)
     seasonalEnabledChanged = pyqtSignal(bool)
-    residualEnabledChanged = pyqtSignal(bool)
+    residualPlotEnabledChanged = pyqtSignal(bool)
+    autoColorNewSeriesChanged = pyqtSignal(bool)
     xAxisModeChanged = pyqtSignal(str)
     manualXAxisEditRequested = pyqtSignal()
     yAxisModeChanged = pyqtSignal(str)
@@ -71,7 +72,6 @@ class TimeSeriesToolbar(QToolBar):
         }
         self._selected_fit_model = "poly-1"
         self._seasonal_enabled = False
-        self._residual_enabled = False
         self.fit_button = SplitToolButton(
             icon=themed_icon(self._fit_models[self._selected_fit_model][1]),
             primary_checkable=True,
@@ -263,7 +263,7 @@ class TimeSeriesToolbar(QToolBar):
             primary_checkable=True,
             parent=self,
             object_name="tool_ts_legend",
-            arrow_side=SplitToolButton.Left,
+            arrow_side=SplitToolButton.Right,
         )
         self.legend_button.setIconSize(self.iconSize())
         self.legend_button.setPrimaryAccessibleName("Plot legend")
@@ -279,12 +279,46 @@ class TimeSeriesToolbar(QToolBar):
         self.legend_button.setPrimaryAccessibleName("Plot legend")
         self.legend_button.setSecondaryAccessibleName("Plot legend settings")
         self.legend_button.setSecondaryToolTip("Plot legend settings")
+
+        self.auto_color_button = QToolButton(self)
+        self.auto_color_button.setObjectName("tool_ts_auto_color_new_series")
+        set_toolbar_control_role(self.auto_color_button, "toggle")
+        self.auto_color_button.setIcon(themed_icon("color_wheel"))
+        self.auto_color_button.setIconSize(self.iconSize())
+        self.auto_color_button.setCheckable(True)
+        self.auto_color_button.setToolButtonStyle(TOOL_BUTTON_ICON_ONLY)
+        self.auto_color_button.setAccessibleName("Auto-color new series")
+        self.auto_color_button.setAccessibleDescription(
+            "Automatically assign distinct colors to newly created time series. "
+            "Does not change existing series."
+        )
+        self.auto_color_button.setToolTip(
+            "Auto-color new series\n"
+            "Automatically assign distinct colors to newly created time series.\n"
+            "Does not change existing series."
+        )
+        self.auto_color_button.setStatusTip("Auto-color new series")
+
+        self.residual_plot_button = QToolButton(self)
+        self.residual_plot_button.setObjectName("tool_ts_residual_plot")
+        set_toolbar_control_role(self.residual_plot_button, "toggle")
+        self.residual_plot_button.setIcon(themed_icon("plot_split"))
+        self.residual_plot_button.setIconSize(self.iconSize())
+        self.residual_plot_button.setCheckable(True)
+        self.residual_plot_button.setToolButtonStyle(TOOL_BUTTON_ICON_ONLY)
+        self.residual_plot_button.setAccessibleName("Residual plot")
+        self.residual_plot_button.setAccessibleDescription(
+            "Show or hide the plot-level residual subplot independently from fitting."
+        )
+        self.residual_plot_button.setToolTip("Show residual plot")
+        self.residual_plot_button.setStatusTip("Show residual plot")
+
         self.plot_export_button = SplitToolButton(
             icon=themed_icon("screenshot"),
             primary_checkable=False,
             parent=self,
             object_name="tool_ts_plot_export",
-            arrow_side=SplitToolButton.Left,
+            arrow_side=SplitToolButton.Right,
             visual_role=SplitToolButton.Command,
         )
         self.plot_export_button.setIconSize(self.iconSize())
@@ -306,12 +340,22 @@ class TimeSeriesToolbar(QToolBar):
         )
         self.plot_export_button.setPrimaryEnabled(False)
         self.addAction(self.plot_style_action)
-        self.addSeparator()
         self.addWidget(self.fit_button)
         self.addWidget(self.replica_button)
         self.addWidget(self.series_y_axis_button)
-        self.addSeparator()
         self.addAction(self.legend_entry_action)
+        self._series_creation_space_before = self._addFixedSpace(
+            "timeSeriesAutoColorBoundarySpaceBefore", 6
+        )
+        self._series_creation_separator = self.addSeparator()
+        self._series_creation_space_after = self._addFixedSpace(
+            "timeSeriesAutoColorBoundarySpaceAfter", 6
+        )
+        self.addWidget(self.auto_color_button)
+        self._creation_plot_space_before = self._addFixedSpace(
+            "timeSeriesAutoColorPlotBoundarySpaceBefore", 6
+        )
+        self._creation_plot_separator = self.addSeparator()
 
         self._spacer_widget = QWidget(self)
         self._spacer_widget.setObjectName("timeSeriesToolbarSpacer")
@@ -332,10 +376,17 @@ class TimeSeriesToolbar(QToolBar):
         self.addWidget(self.hover_readout)
 
         self.addWidget(self.legend_button)
+        self.addWidget(self.residual_plot_button)
         self.addWidget(self.x_axis_button)
         self.addWidget(self.y_axis_button)
         self.addAction(self.appearance_action)
-        self.addSeparator()
+        self._export_space_before = self._addFixedSpace(
+            "timeSeriesExportBoundarySpaceBefore", 6
+        )
+        self._export_separator = self.addSeparator()
+        self._export_space_after = self._addFixedSpace(
+            "timeSeriesExportBoundarySpaceAfter", 6
+        )
         self.addWidget(self.plot_export_button)
 
         for action in (
@@ -365,6 +416,8 @@ class TimeSeriesToolbar(QToolBar):
         self.series_y_axis_group.triggered.connect(self._seriesYAxisActionTriggered)
         self.legend_button.primaryToggled.connect(self.legendEnabledChanged.emit)
         self.legend_button.secondaryTriggered.connect(self.legendSettingsRequested.emit)
+        self.residual_plot_button.toggled.connect(self.residualPlotEnabledChanged.emit)
+        self.auto_color_button.toggled.connect(self.autoColorNewSeriesChanged.emit)
 
     def setHoverReadout(self, text):
         """Update the secondary time-series hover readout text."""
@@ -420,17 +473,31 @@ class TimeSeriesToolbar(QToolBar):
         self._seasonal_enabled = bool(enabled)
         self._updateFitMetadata()
 
-    def setResidualEnabled(self, enabled):
-        """Update Residual metadata without emitting a user-change signal."""
-        self._residual_enabled = bool(enabled)
-        self._updateFitMetadata()
+    def setAutoColorNewSeriesEnabled(self, enabled):
+        """Update the global creation-mode toggle without emitting a user change."""
+        enabled = bool(enabled)
+        previous = self.auto_color_button.blockSignals(True)
+        try:
+            self.auto_color_button.setChecked(enabled)
+        finally:
+            self.auto_color_button.blockSignals(previous)
+
+    def setResidualPlotEnabled(self, enabled):
+        """Update the plot-level Residual toggle without emitting a user change."""
+        enabled = bool(enabled)
+        previous = self.residual_plot_button.blockSignals(True)
+        try:
+            self.residual_plot_button.setChecked(enabled)
+        finally:
+            self.residual_plot_button.blockSignals(previous)
+        tooltip = "Hide residual plot" if enabled else "Show residual plot"
+        self.residual_plot_button.setToolTip(tooltip)
+        self.residual_plot_button.setStatusTip(tooltip)
 
     def _updateFitMetadata(self):
-        """Describe the selected model and current Fit configuration."""
+        """Describe only the selected model and per-series Fit configuration."""
         label = self._fit_models[self._selected_fit_model][0]
         detail = label + (" + seasonal" if self._seasonal_enabled else "")
-        if self._residual_enabled:
-            detail += "; residual shown"
         state = "enabled" if self.fit_button.isChecked() else "disabled"
         tooltip = f"Fit: {detail} — {state}"
         self.fit_button.setPrimaryToolTip(tooltip)
@@ -561,6 +628,14 @@ class TimeSeriesToolbar(QToolBar):
             "Toggle Replica. Use the arrow for settings. " + description
         )
         self.replica_button.setStatusTip(description)
+
+    def _addFixedSpace(self, object_name, width):
+        """Add one fixed-width spacer widget and return it for semantic tests."""
+        spacer = QWidget(self)
+        spacer.setObjectName(object_name)
+        spacer.setFixedWidth(int(width))
+        self.addWidget(spacer)
+        return spacer
 
     def _setActionControlRole(self, action, role):
         """Assign a semantic role to the tool button generated for an action."""

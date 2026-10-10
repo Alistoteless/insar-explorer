@@ -9,12 +9,11 @@ DEFAULT_FIT_MODEL = "poly-1"
 
 @dataclass
 class TimeSeriesFitState:
-    """Represent fitting state independently from any concrete UI widgets."""
+    """Represent per-series fitting state independently from plot visibility."""
 
     fit_enabled: bool = False
     selected_fit_model: str = DEFAULT_FIT_MODEL
     seasonal_enabled: bool = False
-    residual_enabled: bool = False
 
     def __post_init__(self):
         """Normalize invalid model identifiers to the default model."""
@@ -22,10 +21,8 @@ class TimeSeriesFitState:
             self.selected_fit_model = DEFAULT_FIT_MODEL
 
     def setFitEnabled(self, enabled):
-        """Enable or disable fitting while enforcing the residual dependency."""
+        """Enable or disable fitting without altering plot-level settings."""
         self.fit_enabled = bool(enabled)
-        if not self.fit_enabled:
-            self.residual_enabled = False
 
     def setSelectedModel(self, model):
         """Select an actual fit model without implicitly enabling fitting."""
@@ -37,10 +34,4 @@ class TimeSeriesFitState:
         """Set seasonal fitting and activate fitting when seasonal is enabled."""
         self.seasonal_enabled = bool(enabled)
         if self.seasonal_enabled:
-            self.fit_enabled = True
-
-    def setResidualEnabled(self, enabled):
-        """Set residual visibility and activate fitting when residuals are enabled."""
-        self.residual_enabled = bool(enabled)
-        if self.residual_enabled:
             self.fit_enabled = True

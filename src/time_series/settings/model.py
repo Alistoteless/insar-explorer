@@ -94,8 +94,10 @@ class FitStyleSettings:
 
 @dataclass(frozen=True)
 class ResidualStyleSettings:
-    """Persistent defaults for residual series."""
+    """Persistent residual appearance and its relationship to the source series."""
 
+    match_series_style: bool = True
+    custom_style_initialized: bool = False
     marker: str = "o"
     marker_color: str = RESIDUAL_DEFAULT_COLOR
     marker_edge_color: str = "black"
@@ -110,7 +112,19 @@ class ResidualStyleSettings:
     def fromParams(cls, params):
         """Build normalized residual defaults from compatibility parameters."""
         values = params.get("residual plot", {}) if isinstance(params, dict) else {}
+        match_value = values.get("match series style", True)
+        if isinstance(match_value, str):
+            match_value = match_value.strip().lower() not in {"false", "0", "no", "off", ""}
+        initialized_value = values.get("custom style initialized", None)
+        if initialized_value is None:
+            initialized_value = not bool(match_value)
+        elif isinstance(initialized_value, str):
+            initialized_value = initialized_value.strip().lower() not in {
+                "false", "0", "no", "off", ""
+            }
         return cls(
+            match_series_style=bool(match_value),
+            custom_style_initialized=bool(initialized_value),
             marker=normalize_residual_marker(values.get("marker"), "o"),
             marker_color=normalize_color(values.get("marker color"), RESIDUAL_DEFAULT_COLOR),
             marker_edge_color=normalize_color(values.get("marker edge color"), "black"),
@@ -127,11 +141,68 @@ class ResidualStyleSettings:
 
     def asParams(self):
         """Return values using compatibility residual-plot keys."""
-        return {"marker": self.marker, "marker color": self.marker_color,
+        return {"match series style": self.match_series_style,
+                "custom style initialized": self.custom_style_initialized,
+                "marker": self.marker, "marker color": self.marker_color,
                 "marker edge color": self.marker_edge_color,
                 "marker size": self.marker_size, "marker alpha": self.marker_alpha,
                 "line style": self.line_style, "line color": self.line_color,
                 "line width": self.line_width, "line alpha": self.line_alpha}
+
+    def resolve_for_series(self, series_style: SeriesStyleSettings):
+        """Return the effective residual appearance for the given source-series style.
+
+        Matching is a live rendering relationship. Stored custom residual values are
+        retained unchanged while the effective marker/line fields are derived from
+        the source series.
+        """
+        if not self.match_series_style:
+            return self
+        return replace(
+            self,
+            marker=normalize_residual_marker(series_style.marker, self.marker),
+            marker_color=normalize_color(series_style.marker_color, self.marker_color),
+            marker_edge_color=normalize_color(
+                series_style.marker_edge_color, self.marker_edge_color
+            ),
+            marker_size=normalize_number(
+                series_style.marker_size, RESIDUAL_MARKER_SIZE_RANGE, self.marker_size
+            ),
+            marker_alpha=normalize_alpha(series_style.marker_opacity, self.marker_alpha),
+            line_style=normalize_residual_line_style(series_style.line_style, self.line_style),
+            line_color=normalize_color(series_style.line_color, self.line_color),
+            line_width=normalize_number(
+                series_style.line_width, RESIDUAL_LINE_WIDTH_RANGE, self.line_width
+            ),
+            line_alpha=normalize_alpha(series_style.line_opacity, self.line_alpha),
+        )
+
+    def for_default_application(self) -> "ResidualStyleSettings":
+        """Return this saved template normalized for application to one record.
+
+        Match-on defaults represent the per-series matched workflow, so a record
+        created from or reset to such a template has no established custom
+        residual style yet. Match-off defaults are explicit custom templates and
+        therefore arrive initialized. Dormant field values are retained in both
+        cases; only their per-record initialization semantics are normalized.
+        """
+        return replace(
+            self, custom_style_initialized=not bool(self.match_series_style)
+        )
+
+    def seed_custom_from_series(
+        self, series_style: SeriesStyleSettings
+    ) -> "ResidualStyleSettings":
+        """Initialize independent residual styling from the current source appearance.
+
+        This is a one-time presentation-state transition used when a matched residual
+        is first unlinked. It deliberately reuses the effective-style resolver so the
+        series-to-residual field mapping has one typed implementation.
+        """
+        effective = replace(self, match_series_style=True).resolve_for_series(series_style)
+        return replace(
+            effective, match_series_style=False, custom_style_initialized=True
+        )
 
 
 @dataclass(frozen=True)
@@ -235,10 +306,12 @@ class ReplicaSettings:
     opacity: float = 0.8
     marker: str = "o"
     marker_size: float = REPLICA_MARKER_SIZE_DEFAULT
+    show_in_residual: bool = False
 
     def __post_init__(self):
         """Normalize every Replica field at the immutable domain boundary."""
         object.__setattr__(self, "enabled", bool(self.enabled))
+        object.__setattr__(self, "show_in_residual", bool(self.show_in_residual))
         object.__setattr__(self, "interval_mm", max(0.1, min(10000.0, float(self.interval_mm))))
         object.__setattr__(self, "pair_count", max(1, min(10, int(self.pair_count))))
         object.__setattr__(
@@ -264,7 +337,6 @@ class FitAnalysisDefaults:
     enabled: bool = False
     model: str = "poly-1"
     seasonal: bool = False
-    show_residuals: bool = False
 
     def __post_init__(self):
         from ..fit_state import DEFAULT_FIT_MODEL, FIT_MODELS
@@ -274,10 +346,27 @@ class FitAnalysisDefaults:
             self, "model", self.model if self.model in FIT_MODELS else DEFAULT_FIT_MODEL
         )
         object.__setattr__(self, "seasonal", bool(self.seasonal))
+
+
+@dataclass(frozen=True)
+class ResidualPlotSettings:
+    """Plot-level visibility for the residual subplot."""
+
+    enabled: bool = False
+
+    def __post_init__(self):
+        object.__setattr__(self, "enabled", bool(self.enabled))
+
+
+@dataclass(frozen=True)
+class TimeSeriesCreationSettings:
+    """Persistent workflow preferences applied only when creating new series."""
+
+    auto_color_new_series: bool = True
+
+    def __post_init__(self):
         object.__setattr__(
-            self,
-            "show_residuals",
-            bool(self.enabled) and bool(self.show_residuals),
+            self, "auto_color_new_series", bool(self.auto_color_new_series)
         )
 
 
@@ -288,9 +377,11 @@ class ReplicaAnalysisDefaults:
     enabled: bool = False
     pair_count: int = 1
     interval_mm: float = 27.8
+    show_in_residual: bool = False
 
     def __post_init__(self):
         object.__setattr__(self, "enabled", bool(self.enabled))
+        object.__setattr__(self, "show_in_residual", bool(self.show_in_residual))
         object.__setattr__(self, "pair_count", max(1, min(10, int(self.pair_count))))
         object.__setattr__(
             self, "interval_mm", max(0.1, min(10000.0, float(self.interval_mm)))
@@ -618,6 +709,16 @@ class AppearanceSettings:
     date_format: Optional[str] = "%Y-%m-%d"
 
     GRID_MODES: ClassVar[tuple] = ("both", "horizontal", "vertical", "none")
+    TEXT_AXES_FIELDS: ClassVar[tuple] = (
+        "time_series_title", "residual_title",
+        "time_series_x_label", "residual_x_label",
+        "time_series_y_label", "right_y_label",
+        "residual_y_label", "residual_right_y_label",
+        "date_format",
+    )
+    PLOT_STYLE_FIELDS: ClassVar[tuple] = (
+        "font_size", "grid_mode", "plot_background", "canvas_background",
+    )
 
     def __post_init__(self):
         """Normalize the canonical grid mode without introducing a Boolean alias."""
@@ -629,6 +730,18 @@ class AppearanceSettings:
     def normalize_grid_mode(cls, value):
         """Return one supported canonical grid mode, defaulting invalid values to both."""
         return value if value in cls.GRID_MODES else "both"
+
+    def with_fields_from(self, source, fields):
+        """Return this Appearance value with only ``fields`` copied from ``source``."""
+        return replace(self, **{name: getattr(source, name) for name in fields})
+
+    def with_text_axes_from(self, source):
+        """Return this Appearance value with Text & axes fields copied from ``source``."""
+        return self.with_fields_from(source, self.TEXT_AXES_FIELDS)
+
+    def with_plot_style_from(self, source):
+        """Return this Appearance value with Plot style fields copied from ``source``."""
+        return self.with_fields_from(source, self.PLOT_STYLE_FIELDS)
 
 
 @dataclass(frozen=True)
@@ -757,6 +870,8 @@ class TimeSeriesSettingsModel:
     ensemble_defaults: EnsembleStyleSettings = field(default_factory=EnsembleStyleSettings)
     replica: ReplicaSettings = field(default_factory=ReplicaSettings)
     fit_analysis_defaults: FitAnalysisDefaults = field(default_factory=FitAnalysisDefaults)
+    residual_plot: ResidualPlotSettings = field(default_factory=ResidualPlotSettings)
+    creation: TimeSeriesCreationSettings = field(default_factory=TimeSeriesCreationSettings)
     replica_analysis_defaults: ReplicaAnalysisDefaults = field(default_factory=ReplicaAnalysisDefaults)
     y_axis: YAxisSettings = field(default_factory=YAxisSettings)
     x_axis: XAxisSettings = field(default_factory=XAxisSettings)
@@ -828,8 +943,14 @@ class TimeSeriesSettingsModel:
             "fit_defaults": self.fit_defaults.asParams(),
             "residual_defaults": self.residual_defaults.asParams(),
             "ensemble_defaults": self.ensemble_defaults.asParams(),
-            "replica_defaults": {"interval_mm": self.replica.interval_mm, "pair_count": self.replica.pair_count},
+            "replica_defaults": {
+                "interval_mm": self.replica.interval_mm,
+                "pair_count": self.replica.pair_count,
+                "show_in_residual": self.replica.show_in_residual,
+            },
             "fit_analysis_defaults": asdict(self.fit_analysis_defaults),
+            "residual_plot": asdict(self.residual_plot),
+            "creation": asdict(self.creation),
             "replica_analysis_defaults": asdict(self.replica_analysis_defaults),
             "appearance": asdict(self.appearance),
             "export": asdict(self.export),
@@ -841,4 +962,5 @@ class TimeSeriesSettingsModel:
         return TimeSeriesSettingsModel(**{name: deepcopy(getattr(self, name)) for name in (
             "series_defaults", "fit_defaults", "residual_defaults", "fit_current",
             "residual_current", "ensemble_defaults", "replica", "fit_analysis_defaults",
-            "replica_analysis_defaults", "y_axis", "x_axis", "appearance", "export", "legend")})
+            "residual_plot", "creation", "replica_analysis_defaults", "y_axis", "x_axis",
+            "appearance", "export", "legend")})

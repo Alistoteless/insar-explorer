@@ -87,14 +87,13 @@ from .time_series.residual_style_controller import ResidualStyleController
 from .time_series.style_availability import TimeSeriesStyleAvailability
 from .time_series.style_controller import TimeSeriesStyleController
 from .time_series.style_schema import percent_to_alpha
-from .time_series.style_palette import (
-    DISTINCT_TIME_SERIES_COLORS, with_primary_series_color,
-)
+from .time_series.style_palette import assign_distinct_family_colors
 from .time_series.legend_entry import resolve_initial_legend_settings
 from .time_series.settings.model import (
     AppearanceSettings, AxisManualRange, EnsembleStyleSettings, ExportSettings,
     FitStyleSettings, LegendEntryDefaults, LegendSettings, RelatedLegendDefaults, ReplicaSettings, ReplicaStyleSettings,
-    ResidualStyleSettings, SeriesStyleSettings, XAxisSettings,
+    ResidualPlotSettings, ResidualStyleSettings, SeriesStyleSettings,
+    TimeSeriesCreationSettings, XAxisSettings,
 )
 from .time_series.settings.persistence import build_legacy_plot_params
 from .time_series.persistence import PreferencesPersistenceError
@@ -269,12 +268,15 @@ class GuiController(QObject):
             fit_enabled=fit_defaults.enabled,
             selected_fit_model=fit_defaults.model,
             seasonal_enabled=fit_defaults.seasonal,
-            residual_enabled=fit_defaults.show_residuals,
+        )
+        plotter.plot_residuals_flag = bool(
+            self.time_series_settings.residual_plot.enabled
         )
         replica_defaults = self.time_series_settings.replica_analysis_defaults
         self._replica_enabled_view = replica_defaults.enabled
         self._replica_interval_view = replica_defaults.interval_mm
         self._replica_pair_count_view = replica_defaults.pair_count
+        self._replica_show_in_residual_view = replica_defaults.show_in_residual
         self._analysis_defaults = StickyAnalysisDefaultsCoordinator(
             self.time_series_settings,
             plotter.user_preferences,
@@ -399,15 +401,25 @@ class GuiController(QObject):
             enabled=state.fit_enabled,
             model=state.selected_fit_model,
             seasonal=state.seasonal_enabled,
-            show_residuals=bool(state.fit_enabled and state.residual_enabled),
         )
 
-    def _persistCurrentReplicaAnalysisDefaults(self):
-        """Persist normalized Replica state after an explicit user action only."""
+    def _persistCurrentReplicaAnalysisDefaults(self, *, include_residual_opt_in=False):
+        """Persist sticky Replica defaults without leaking a per-record residual opt-in.
+
+        Replica enablement/interval/pair count retain the established sticky behavior.
+        ``show_in_residual`` is intentionally per-record and only becomes a future-record
+        default through the explicit Replica default actions.
+        """
+        show_in_residual = (
+            self._replica_show_in_residual_view
+            if include_residual_opt_in
+            else self.time_series_settings.replica_analysis_defaults.show_in_residual
+        )
         return self._analysis_defaults.update_replica(
             enabled=self.time_series_replica_enabled,
             pair_count=self.time_series_replica_pair_count,
             interval_mm=self.time_series_replica_interval_mm,
+            show_in_residual=show_in_residual,
         )
 
     def initializeSelection(self):
@@ -1562,7 +1574,12 @@ class GuiController(QObject):
         self.ui.time_series_toolbar.fitModelChanged.connect(self.setTimeSeriesFitModel)
         self.ui.time_series_toolbar.fitSettingsRequested.connect(self.showFitPopup)
         self.ui.time_series_toolbar.seasonalEnabledChanged.connect(self.setTimeSeriesSeasonalEnabled)
-        self.ui.time_series_toolbar.residualEnabledChanged.connect(self.setTimeSeriesResidualEnabled)
+        self.ui.time_series_toolbar.residualPlotEnabledChanged.connect(
+            self.setResidualPlotEnabled
+        )
+        self.ui.time_series_toolbar.autoColorNewSeriesChanged.connect(
+            self.setAutoColorNewSeriesEnabled
+        )
         self.ui.time_series_toolbar.xAxisModeChanged.connect(self.setTimeSeriesXAxisMode)
         self.ui.time_series_toolbar.manualXAxisEditRequested.connect(self.showManualXAxisPopup)
         self.manual_x_axis_popup.applyRequested.connect(self.applyManualXAxisRange)
@@ -1590,7 +1607,6 @@ class GuiController(QObject):
         toolbar = self.ui.time_series_toolbar
         fit_popup.modelChanged.connect(toolbar.selectFitModel)
         fit_popup.seasonalEnabledChanged.connect(toolbar.seasonalEnabledChanged.emit)
-        fit_popup.residualEnabledChanged.connect(toolbar.residualEnabledChanged.emit)
         fit_popup.fitLineTypeChanged.connect(
             lambda value: self._applySelectedFitStyle("line_type", value)
         )
@@ -1602,6 +1618,9 @@ class GuiController(QObject):
         )
         fit_popup.fitOpacityChanged.connect(
             lambda value: self._applySelectedFitStyle("line_opacity", percent_to_alpha(value))
+        )
+        fit_popup.residualMatchSeriesStyleChanged.connect(
+            self._applySelectedResidualMatchSeriesStyle
         )
         fit_popup.residualMarkerTypeChanged.connect(
             lambda value: self._applySelectedResidualStyle("marker_type", value)
@@ -1690,10 +1709,28 @@ class GuiController(QObject):
         self.export_settings_popup.applyFactoryDefaultRequested.connect(self.applyFactoryExportDefaults)
         self.export_settings_popup.saveCurrentAsDefaultRequested.connect(self.setCurrentExportAsDefault)
         self.appearance_popup.settingsChanged.connect(self.updateAppearanceSettings)
-        self.appearance_popup.applySavedDefaultRequested.connect(self.restoreAppearanceDefaults)
-        self.appearance_popup.applyFactoryDefaultRequested.connect(self.applyFactoryAppearanceDefaults)
-        self.appearance_popup.saveCurrentAsDefaultRequested.connect(self.setCurrentAppearanceAsDefault)
+        self.appearance_popup.applySavedTextAxesDefaultRequested.connect(
+            self.restoreAppearanceTextAxesDefaults
+        )
+        self.appearance_popup.applyFactoryTextAxesDefaultRequested.connect(
+            self.applyFactoryAppearanceTextAxesDefaults
+        )
+        self.appearance_popup.saveCurrentTextAxesAsDefaultRequested.connect(
+            self.setCurrentAppearanceTextAxesAsDefault
+        )
+        self.appearance_popup.applySavedPlotStyleDefaultRequested.connect(
+            self.restoreAppearancePlotStyleDefaults
+        )
+        self.appearance_popup.applyFactoryPlotStyleDefaultRequested.connect(
+            self.applyFactoryAppearancePlotStyleDefaults
+        )
+        self.appearance_popup.saveCurrentPlotStyleAsDefaultRequested.connect(
+            self.setCurrentAppearancePlotStyleAsDefault
+        )
         self.replica_popup.settingsChanged.connect(self.updateReplicaCoreSettings)
+        self.replica_popup.showInResidualChanged.connect(
+            self.setReplicaShowInResidual
+        )
         self.replica_popup.applySavedDefaultRequested.connect(self.restoreReplicaDefaults)
         self.replica_popup.applyFactoryDefaultRequested.connect(self.applyFactoryReplicaDefaults)
         self.replica_popup.saveCurrentAsDefaultRequested.connect(self.setCurrentReplicaAsDefault)
@@ -2329,7 +2366,6 @@ class GuiController(QObject):
     def resetTimeSeriesFitState(self):
         """Reset fit activity while retaining a valid selected model for this session."""
         self.time_series_fit_state.setFitEnabled(False)
-        self.time_series_fit_state.residual_enabled = False
         self._applyTimeSeriesFitState(refresh=False)
 
     def _syncTimeSeriesFitControls(self):
@@ -2339,30 +2375,38 @@ class GuiController(QObject):
         toolbar.setFitEnabled(state.fit_enabled)
         toolbar.setSelectedFitModel(state.selected_fit_model)
         toolbar.setSeasonalEnabled(state.seasonal_enabled)
-        toolbar.setResidualEnabled(state.residual_enabled)
+        toolbar.setResidualPlotEnabled(
+            self.time_series_settings.residual_plot.enabled
+        )
+        toolbar.setAutoColorNewSeriesEnabled(
+            self.time_series_settings.creation.auto_color_new_series
+        )
         if hasattr(self, "fit_popup"):
             self.fit_popup.setSettings(
                 state.selected_fit_model,
                 state.seasonal_enabled,
-                state.residual_enabled,
             )
             self._refreshFitPopupAvailability()
+        self._refreshReplicaPopupAvailability()
 
     def _syncActiveAnalysisControls(self, record):
-        """Project active-record analysis into controller controls without rerendering."""
+        """Project active-record analysis and presentation into controls without edits."""
         if record is None:
             return
+        self.time_series_settings.replace_domain(
+            "residual_current", record.presentation.residual
+        )
         fit = record.analysis.fit
         state = self.time_series_fit_state
         state.fit_enabled = fit.enabled
         if fit.model is not None:
             state.setSelectedModel(fit.model)
         state.seasonal_enabled = fit.seasonal
-        state.residual_enabled = fit.show_residuals
         replica = record.analysis.replica
         self._replica_enabled_view = replica.enabled
         self._replica_interval_view = replica.interval_mm
         self._replica_pair_count_view = replica.pair_count
+        self._replica_show_in_residual_view = replica.show_in_residual
         self._syncTimeSeriesFitControls()
         self._syncTimeSeriesReplicaControls()
 
@@ -2374,12 +2418,13 @@ class GuiController(QObject):
         plotter = self.choose_point_click_handler.plot_ts
         plotter.fit_models = [state.selected_fit_model] if state.fit_enabled else []
         plotter.fit_seasonal_flag = state.seasonal_enabled
-        plotter.plot_residuals_flag = state.residual_enabled and state.fit_enabled
+        plotter.plot_residuals_flag = bool(
+            self.time_series_settings.residual_plot.enabled
+        )
         fit_config = FitConfiguration(
             enabled=state.fit_enabled,
             model=state.selected_fit_model if state.fit_enabled else None,
             seasonal=state.seasonal_enabled,
-            show_residuals=state.residual_enabled and state.fit_enabled,
         )
         self._syncTimeSeriesFitControls()
         if refresh and plotter.editable_time_series_record() is not None:
@@ -2392,7 +2437,7 @@ class GuiController(QObject):
             self._refreshTimeSeriesStylePopup()
 
     def setTimeSeriesFitEnabled(self, enabled):
-        """Commit Fit intent and rebuild any dependent residual layout once."""
+        """Commit per-series Fit intent without changing plot-level residual visibility."""
         state = self.time_series_fit_state
         state.setFitEnabled(enabled)
         plotter = self.choose_point_click_handler.plot_ts
@@ -2402,7 +2447,6 @@ class GuiController(QObject):
                 refresh=True,
                 report_statistics=bool(enabled),
             )
-            plotter.initializeAxes()
         current = plotter.editable_time_series_record()
         if current is not None:
             self._syncActiveAnalysisControls(current)
@@ -2431,38 +2475,40 @@ class GuiController(QObject):
         )
         self._persistCurrentFitAnalysisDefaults()
 
-    def setTimeSeriesResidualEnabled(self, enabled):
-        """Commit residual intent once, then rebuild the matching axes layout."""
-        self.time_series_fit_state.setResidualEnabled(enabled)
-        state = self.time_series_fit_state
-        plotter = self.choose_point_click_handler.plot_ts
-        fit_config = FitConfiguration(
-            enabled=state.fit_enabled,
-            model=state.selected_fit_model if state.fit_enabled else None,
-            seasonal=state.seasonal_enabled,
-            show_residuals=bool(state.fit_enabled and state.residual_enabled),
+    def setAutoColorNewSeriesEnabled(self, enabled):
+        """Persist the global creation policy without mutating existing records."""
+        settings = TimeSeriesCreationSettings(auto_color_new_series=enabled)
+        self.time_series_settings.replace_domain("creation", settings)
+        self.ui.time_series_toolbar.setAutoColorNewSeriesEnabled(
+            settings.auto_color_new_series
         )
+        plotter = self.choose_point_click_handler.plot_ts
+        self._saveUserPreferences(
+            lambda: plotter.user_preferences.save_creation(settings),
+            "Auto-color preference saved.",
+        )
+
+    def setResidualPlotEnabled(self, enabled):
+        """Set plot-level residual subplot visibility without mutating any record Fit."""
+        settings = ResidualPlotSettings(enabled=enabled)
+        self.time_series_settings.replace_domain("residual_plot", settings)
+        plotter = self.choose_point_click_handler.plot_ts
+        plotter.plot_residuals_flag = settings.enabled
+        self.ui.time_series_toolbar.setResidualPlotEnabled(settings.enabled)
         with plotter.axisViewUpdateGuard():
-            if not plotter.updateActiveAnalysis(
-                fit=fit_config, report_statistics=False
-            ):
-                self._applyTimeSeriesFitState(refresh=False)
             plotter.initializeAxes()
-        # The rerender callback projects the committed record back into both UI
-        # surfaces. Repeat the guarded projection for plotters without a callback.
-        current = plotter.editable_time_series_record()
-        if current is not None:
-            self._syncActiveAnalysisControls(current)
-        self._persistCurrentFitAnalysisDefaults()
+        self._saveUserPreferences(
+            lambda: plotter.user_preferences.save_residual_plot(settings),
+            "Residual plot preference saved.",
+        )
 
     def _fitStyleAvailable(self):
         """Return Fit Style editability from Fit activation alone."""
         return bool(self.time_series_fit_state.fit_enabled)
 
     def _residualStyleAvailable(self):
-        """Return Residual Style editability from Fit and residual feature state."""
-        state = self.time_series_fit_state
-        return bool(state.fit_enabled and state.residual_enabled)
+        """Return Residual Style editability from per-series Fit activation alone."""
+        return bool(self.time_series_fit_state.fit_enabled)
 
     def _refreshFitStyleAvailability(self):
         """Synchronize Fit Style contents without rendering or emitting edits."""
@@ -2490,7 +2536,7 @@ class GuiController(QObject):
         snapshots = self.selectedTimeSeriesSnapshots() if snapshots is None else snapshots
         state = self.time_series_fit_state
         return TimeSeriesStyleAvailability.fromSelection(
-            snapshots, fit_enabled=state.fit_enabled, residual_enabled=state.residual_enabled
+            snapshots, fit_enabled=state.fit_enabled
         )
 
     def selectedSeriesStyles(self):
@@ -2504,12 +2550,13 @@ class GuiController(QObject):
         return self.selectedTimeSeriesSnapshots()
 
     def _applySelectedSeriesStyle(self, property_name, value):
-        """Apply one style property to selected series and redraw exactly once."""
+        """Apply one style property and refresh any matched residual-style preview."""
         snapshots = self._selectedTimeSeriesSnapshots()
         if not snapshots:
             return
         changed = self.time_series_style_controller.applyProperty(snapshots, property_name, value)
         self.choose_point_click_handler.plot_ts.rerenderTimeSeriesSnapshots(changed)
+        self._refreshTimeSeriesStylePopup()
 
     def _currentFitStyle(self):
         """Return the authoritative runtime Fit appearance."""
@@ -2531,6 +2578,7 @@ class GuiController(QObject):
         """Update one authoritative Residual property without touching saved defaults."""
         values = self._currentResidualStyle().asParams()
         values[self.residual_style_controller.STYLE_KEYS[property_name]] = value
+        values["custom style initialized"] = True
         style = ResidualStyleSettings.fromParams({"residual plot": values})
         self.time_series_settings.replace_domain("residual_current", style)
         return style
@@ -2561,6 +2609,29 @@ class GuiController(QObject):
         self.time_series_y_axis_mode = y_axis_mode
         self._refreshTimeSeriesStylePopup()
 
+    def _applySelectedResidualMatchSeriesStyle(self, enabled):
+        """Toggle residual matching, seeding custom style once on first unlink."""
+        snapshots = self._selectedTimeSeriesSnapshots()
+        if snapshots:
+            changed = self.residual_style_controller.applyMatchSeriesStyle(
+                snapshots, enabled
+            )
+            # Keep the runtime editor state synchronized with the actual semantic
+            # transition, including any first-unlink seed values.
+            self.time_series_settings.replace_domain(
+                "residual_current", changed[0].presentation.residual
+            )
+            if self.timeSeriesStyleAvailability(snapshots).residual_available:
+                self.choose_point_click_handler.plot_ts.rerenderTimeSeriesSnapshots(
+                    changed
+                )
+        else:
+            current = replace(
+                self._currentResidualStyle(), match_series_style=bool(enabled)
+            )
+            self.time_series_settings.replace_domain("residual_current", current)
+        self._refreshTimeSeriesStylePopup()
+
     def _applySelectedResidualStyle(self, property_name, value):
         """Store one Residual property and rerender selected visible targets once."""
         self._updateCurrentResidualStyle(property_name, value)
@@ -2574,24 +2645,16 @@ class GuiController(QObject):
         self._refreshTimeSeriesStylePopup()
 
     def randomizeSelectedResidualColor(self):
-        """Store one random residual color and apply it to selected targets."""
-        from random import randint
-        # non-security randomness used only to choose a display color.
-        red = randint(0, 255)  # nosec B311
-        green = randint(0, 255)  # nosec B311
-        blue = randint(0, 255)  # nosec B311
-        color = "#{:02x}{:02x}{:02x}".format(red, green, blue)
-        values = self._currentResidualStyle().asParams()
-        values.update({"marker color": color, "line color": color})
-        current = ResidualStyleSettings.fromParams({"residual plot": values})
-        self.time_series_settings.replace_domain("residual_current", current)
+        """Randomize selected residual colors without copying other record state."""
         snapshots = self._selectedTimeSeriesSnapshots()
-        if snapshots:
-            changed = self.residual_style_controller.applyValues(
-                snapshots, current.asParams()
-            )
-            if self.timeSeriesStyleAvailability(snapshots).residual_available:
-                self.choose_point_click_handler.plot_ts.rerenderTimeSeriesSnapshots(changed)
+        if not snapshots:
+            return
+        changed = self.residual_style_controller.randomizeColor(snapshots)
+        self.time_series_settings.replace_domain(
+            "residual_current", changed[0].presentation.residual
+        )
+        if self.timeSeriesStyleAvailability(snapshots).residual_available:
+            self.choose_point_click_handler.plot_ts.rerenderTimeSeriesSnapshots(changed)
         self._refreshTimeSeriesStylePopup()
 
     def restoreEnsembleStyleDefaults(self):
@@ -2644,8 +2707,11 @@ class GuiController(QObject):
         self._refreshTimeSeriesStylePopup()
 
     def restoreResidualStyleDefaults(self):
-        """Apply saved Residual defaults to current and selected styles."""
-        defaults = self.choose_point_click_handler.plot_ts.user_preferences.load().residual_defaults
+        """Apply saved Residual defaults using per-record template semantics."""
+        defaults = (
+            self.choose_point_click_handler.plot_ts.user_preferences.load()
+            .residual_defaults.for_default_application()
+        )
         self._applyCurrentResidualStyle(defaults)
 
     def applyFactoryResidualStyleDefaults(self):
@@ -2653,8 +2719,12 @@ class GuiController(QObject):
         self._applyCurrentResidualStyle(ResidualStyleSettings())
 
     def setCurrentResidualStyleAsDefault(self):
-        """Persist the authoritative current Residual appearance."""
-        residual_style = self._currentResidualStyle()
+        """Persist the selected record's exact Residual presentation as the default."""
+        snapshots = self._selectedTimeSeriesSnapshots()
+        residual_style = (
+            self.residual_style_controller.residualStyle(snapshots[0])
+            if snapshots else self._currentResidualStyle()
+        )
         plotter = self.choose_point_click_handler.plot_ts
         plotter.settings_model.replace_domain("residual_defaults", residual_style)
         self._saveUserPreferences(
@@ -2669,7 +2739,7 @@ class GuiController(QObject):
             return
         changed = self.time_series_style_controller.randomizeColor(snapshots)
         self.choose_point_click_handler.plot_ts.rerenderTimeSeriesSnapshots(changed)
-        self.time_series_style_popup.setStyle(changed[0].style)
+        self._refreshTimeSeriesStylePopup()
 
     def restoreSeriesStyleDefaults(self):
         """Apply the persisted primary-series defaults to selected series."""
@@ -2757,7 +2827,7 @@ class GuiController(QObject):
                 self.fit_style_controller.fitStyle(snapshots[0])
             )
             self.fit_popup.setResidualStyle(
-                self.residual_style_controller.residualStyle(snapshots[0])
+                self.residual_style_controller.residualStyleForDisplay(snapshots[0])
             )
             ensemble_snapshots = self.ensemble_style_controller.applicableSnapshots(snapshots)
             if ensemble_snapshots:
@@ -2805,28 +2875,58 @@ class GuiController(QObject):
         plotter.refreshCompatibilityViews()
         self.syncAppearancePopup()
 
-    def restoreAppearanceDefaults(self):
-        """Restore Appearance controls from the currently persisted defaults."""
+    def _applyAppearanceDefaults(self, defaults, *, text_axes):
+        """Apply only one Appearance tab's fields from ``defaults``."""
         plotter = self.choose_point_click_handler.plot_ts
-        defaults = plotter.user_preferences.load().appearance
-        plotter.settings_model.replace_domain("appearance", defaults)
+        current = plotter.settings_model.appearance
+        settings = (
+            current.with_text_axes_from(defaults)
+            if text_axes else current.with_plot_style_from(defaults)
+        )
+        plotter.settings_model.replace_domain("appearance", settings)
         plotter.refreshCompatibilityViews()
         self.syncAppearancePopup()
 
-    def setCurrentAppearanceAsDefault(self):
-        """Persist an Appearance snapshot without changing current controls."""
-        settings = self.choose_point_click_handler.plot_ts.settings_model.appearance
+    def restoreAppearanceTextAxesDefaults(self):
+        """Restore only Text & axes fields from the persisted Appearance defaults."""
+        plotter = self.choose_point_click_handler.plot_ts
+        self._applyAppearanceDefaults(plotter.user_preferences.load().appearance, text_axes=True)
+
+    def restoreAppearancePlotStyleDefaults(self):
+        """Restore only Plot style fields from the persisted Appearance defaults."""
+        plotter = self.choose_point_click_handler.plot_ts
+        self._applyAppearanceDefaults(plotter.user_preferences.load().appearance, text_axes=False)
+
+    def _saveCurrentAppearanceTabAsDefault(self, *, text_axes):
+        """Persist only one tab's current values while preserving other saved defaults."""
+        plotter = self.choose_point_click_handler.plot_ts
+        current = plotter.settings_model.appearance
+        saved = plotter.user_preferences.load().appearance
+        settings = (
+            saved.with_text_axes_from(current)
+            if text_axes else saved.with_plot_style_from(current)
+        )
+        label = "Text & axes" if text_axes else "Plot style"
         self._saveUserPreferences(
-            lambda: self.choose_point_click_handler.plot_ts.user_preferences.save_appearance(settings),
-            "Current appearance saved as default.",
+            lambda: plotter.user_preferences.save_appearance(settings),
+            f"Current {label} appearance saved as default.",
         )
 
-    def applyFactoryAppearanceDefaults(self):
-        """Apply canonical built-in Appearance values without changing saved defaults."""
-        plotter = self.choose_point_click_handler.plot_ts
-        plotter.settings_model.replace_domain("appearance", AppearanceSettings())
-        plotter.refreshCompatibilityViews()
-        self.syncAppearancePopup()
+    def setCurrentAppearanceTextAxesAsDefault(self):
+        """Persist the current Text & axes values without replacing Plot style defaults."""
+        self._saveCurrentAppearanceTabAsDefault(text_axes=True)
+
+    def setCurrentAppearancePlotStyleAsDefault(self):
+        """Persist the current Plot style values without replacing Text & axes defaults."""
+        self._saveCurrentAppearanceTabAsDefault(text_axes=False)
+
+    def applyFactoryAppearanceTextAxesDefaults(self):
+        """Apply factory Text & axes values while preserving current Plot style values."""
+        self._applyAppearanceDefaults(AppearanceSettings(), text_axes=True)
+
+    def applyFactoryAppearancePlotStyleDefaults(self):
+        """Apply factory Plot style values while preserving current Text & axes values."""
+        self._applyAppearanceDefaults(AppearanceSettings(), text_axes=False)
 
     def showAppearancePopup(self):
         """Open the anchored Appearance editor initialized from runtime state."""
@@ -3560,12 +3660,7 @@ class GuiController(QObject):
                 raise KeyError(
                     "one or more selected committed time series no longer exist"
                 )
-            replacements = []
-            for index, record in enumerate(originals):
-                color = DISTINCT_TIME_SERIES_COLORS[
-                    index % len(DISTINCT_TIME_SERIES_COLORS)
-                ]
-                replacements.append(with_primary_series_color(record, color))
+            replacements = assign_distinct_family_colors(originals)
             plotter.rerender_records(replacements, notify=True, draw=True)
         except Exception as error:
             self._reportDistinctColorFailure(error)
@@ -4169,18 +4264,25 @@ class GuiController(QObject):
             self._syncTimeSeriesYAxisControls()
             return
         if self._manual_y_axis_session is not None:
-            self.manual_y_axis_popup.show(); self.manual_y_axis_popup.raise_(); self.manual_y_axis_popup.activateWindow(); return
+            self.manual_y_axis_popup.show()
+            self.manual_y_axis_popup.raise_()
+            self.manual_y_axis_popup.activateWindow()
+            return
         state = self.time_series_settings.y_axis
         manuals = {name: getattr(state, f"{name}_manual") for name in availability}
         data = {name: plotter.dataYAxisRangeForDomain(name) for name in availability}
         self._manual_y_axis_session = {"y_axis": state, "viewport": plotter.captureViewport()}
         self.manual_y_axis_popup.openForDomains(manuals, data, availability)
-        popup = self.manual_y_axis_popup; popup.adjustSize()
+        popup = self.manual_y_axis_popup
+        popup.adjustSize()
         button = self.ui.time_series_toolbar.y_axis_button
-        top_left = button.mapToGlobal(QPoint(0, 0)); anchor = QRect(top_left, button.size())
+        top_left = button.mapToGlobal(QPoint(0, 0))
+        anchor = QRect(top_left, button.size())
         geometry = available_screen_geometry(top_left, popup)
         popup.move(screen_aware_popup_position(anchor, popup.sizeHint(), geometry))
-        popup.show(); popup.raise_(); popup.activateWindow()
+        popup.show()
+        popup.raise_()
+        popup.activateWindow()
 
     def captureCurrentManualYAxisView(self, axis_name):
         """Copy one current domain viewport into the popup draft without committing it."""
@@ -4214,7 +4316,8 @@ class GuiController(QObject):
             return
         state = self.time_series_settings.y_axis
         for domain in changed:
-            values = payload[domain]; lower, upper = values["bounds"]
+            values = payload[domain]
+            lower, upper = values["bounds"]
             manual = AxisManualRange(
                 lower, upper, *values["retained"], configured=True
             )
@@ -4281,6 +4384,9 @@ class GuiController(QObject):
             self.replica_popup.setReplicaStyleAvailable(
                 self._replicaStyleAvailable()
             )
+            self.replica_popup.setShowInResidualAvailable(
+                bool(self._replicaStyleAvailable() and self.time_series_fit_state.fit_enabled)
+            )
 
     def _activeReplicaSettingsSnapshot(self):
         """Combine active record calculation and visual state for popup projection."""
@@ -4294,6 +4400,7 @@ class GuiController(QObject):
             pair_count=self.time_series_replica_pair_count,
             color_1=visual.color_1, color_2=visual.color_2,
             opacity=visual.opacity, marker=visual.marker, marker_size=visual.marker_size,
+            show_in_residual=self._replica_show_in_residual_view,
         )
 
     def syncReplicaPopup(self):
@@ -4346,11 +4453,13 @@ class GuiController(QObject):
             defaults, color_1=applied.color_1, color_2=applied.color_2,
             opacity=applied.opacity, marker=applied.marker,
             marker_size=applied.marker_size,
+            show_in_residual=applied.show_in_residual,
         )
         self.time_series_settings.replace_domain("replica", presentation)
         self.time_series_replica_enabled = applied.enabled
         self.time_series_replica_interval_mm = applied.interval_mm
         self.time_series_replica_pair_count = applied.pair_count
+        self._replica_show_in_residual_view = bool(applied.show_in_residual)
         self._syncTimeSeriesReplicaControls()
         return applied
 
@@ -4366,6 +4475,7 @@ class GuiController(QObject):
         replica_config = ReplicaConfiguration(
             enabled=applied.enabled, interval_mm=applied.interval_mm,
             pair_count=applied.pair_count,
+            show_in_residual=applied.show_in_residual,
         )
         replica_style = ReplicaStyleSettings(
             color_1=applied.color_1, color_2=applied.color_2,
@@ -4389,6 +4499,7 @@ class GuiController(QObject):
             enabled=self.time_series_replica_enabled, interval_mm=interval_mm, pair_count=pair_count,
             color_1=color_1, color_2=color_2, opacity=opacity,
             marker=marker, marker_size=marker_size,
+            show_in_residual=self._replica_show_in_residual_view,
         )
         self._applyReplicaSettingsSnapshot(replica, refresh_graphics=True)
         self._persistCurrentReplicaAnalysisDefaults()
@@ -4398,7 +4509,7 @@ class GuiController(QObject):
         applied = replace(settings, enabled=self.time_series_replica_enabled)
         self.time_series_settings.replace_domain("replica", settings)
         self._applyReplicaSettingsSnapshot(applied, refresh_graphics=True)
-        self._persistCurrentReplicaAnalysisDefaults()
+        self._persistCurrentReplicaAnalysisDefaults(include_residual_opt_in=True)
 
     def restoreReplicaDefaults(self):
         """Apply persisted Replica defaults when an applicable target exists."""
@@ -4418,12 +4529,14 @@ class GuiController(QObject):
             presentation, enabled=self.time_series_replica_enabled,
             interval_mm=self.time_series_replica_interval_mm,
             pair_count=self.time_series_replica_pair_count,
+            show_in_residual=self._replica_show_in_residual_view,
         )
         self.time_series_settings.replace_domain("replica", current)
         if self._saveUserPreferences(
             lambda: self.choose_point_click_handler.plot_ts.user_preferences.save_replica_defaults(current),
             "Current replica settings saved as default.",
         ):
+            self._persistCurrentReplicaAnalysisDefaults(include_residual_opt_in=True)
             self.settings.setValue("insar_explorer/replica_interval_mm", current.interval_mm)
 
     def applyFactoryReplicaDefaults(self):
@@ -4439,7 +4552,8 @@ class GuiController(QObject):
         self.choose_point_click_handler.plot_ts.settings_model.replace_domain(
             "replica", replace(reloaded.replica_defaults,
                                enabled=self.time_series_replica_enabled,
-                               interval_mm=self.time_series_replica_interval_mm)
+                               interval_mm=self.time_series_replica_interval_mm,
+                               show_in_residual=self._replica_show_in_residual_view)
         )
         self.time_series_replica_pair_count = self.time_series_settings.replica.pair_count
         self._syncTimeSeriesReplicaControls()
@@ -4452,6 +4566,7 @@ class GuiController(QObject):
             enabled=defaults.enabled,
             interval_mm=defaults.interval_mm,
             pair_count=defaults.pair_count,
+            show_in_residual=defaults.show_in_residual,
         )
         self._projectReplicaSettingsSnapshot(replica)
 
@@ -4497,6 +4612,7 @@ class GuiController(QObject):
             enabled=self.time_series_replica_enabled,
             interval_mm=self.time_series_replica_interval_mm,
             pair_count=self.time_series_replica_pair_count,
+            show_in_residual=self._replica_show_in_residual_view,
         )
         self._applyReplicaSettingsSnapshot(
             replica, apply_to_active_record=True, refresh_graphics=refresh
@@ -4536,6 +4652,23 @@ class GuiController(QObject):
             applied,
             apply_to_active_record=True,
             refresh_graphics=self.time_series_replica_enabled,
+        )
+        self._persistCurrentReplicaAnalysisDefaults()
+
+    def setReplicaShowInResidual(self, enabled):
+        """Toggle residual-subplot Replica rendering for the active series only."""
+        self._replica_show_in_residual_view = bool(enabled)
+        replica = replace(
+            self.time_series_settings.replica,
+            enabled=self.time_series_replica_enabled,
+            interval_mm=self.time_series_replica_interval_mm,
+            pair_count=self.time_series_replica_pair_count,
+            show_in_residual=self._replica_show_in_residual_view,
+        )
+        self._applyReplicaSettingsSnapshot(
+            replica,
+            apply_to_active_record=True,
+            refresh_graphics=True,
         )
         self._persistCurrentReplicaAnalysisDefaults()
 

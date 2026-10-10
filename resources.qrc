@@ -15,6 +15,8 @@
     <file alias="bookmark_set.svg">icons/light/bookmark_set.svg</file>
     <file alias="bookmark_star.svg">icons/light/bookmark_star.svg</file>
     <file alias="clipboard.svg">icons/light/clipboard.svg</file>
+    <file alias="color_rainbow.svg">icons/light/color_rainbow.svg</file>
+    <file alias="color_wheel.svg">icons/light/color_wheel.svg</file>
     <file alias="copy_content.svg">icons/light/copy_content.svg</file>
     <file alias="delete.svg">icons/light/delete.svg</file>
     <file alias="edit.svg">icons/light/edit.svg</file>
@@ -34,6 +36,7 @@
     <file alias="legend.svg">icons/light/legend.svg</file>
     <file alias="plot_random_color.svg">icons/light/plot_random_color.svg</file>
     <file alias="plot_settings.svg">icons/light/plot_settings.svg</file>
+    <file alias="plot_split.svg">icons/light/plot_split.svg</file>
     <file alias="polygon_reference_selection.svg">icons/light/polygon_reference_selection.svg</file>
     <file alias="polygon_selection.svg">icons/light/polygon_selection.svg</file>
     <file alias="rename.svg">icons/light/rename.svg</file>
@@ -68,6 +71,7 @@
     <file alias="bookmark_set.svg">icons/dark/bookmark_set.svg</file>
     <file alias="bookmark_star.svg">icons/dark/bookmark_star.svg</file>
     <file alias="clipboard.svg">icons/dark/clipboard.svg</file>
+    <file alias="color_wheel.svg">icons/dark/color_wheel.svg</file>
     <file alias="copy_content.svg">icons/dark/copy_content.svg</file>
     <file alias="delete.svg">icons/dark/delete.svg</file>
     <file alias="edit.svg">icons/dark/edit.svg</file>
@@ -87,6 +91,7 @@
     <file alias="legend.svg">icons/dark/legend.svg</file>
     <file alias="plot_random_color.svg">icons/dark/plot_random_color.svg</file>
     <file alias="plot_settings.svg">icons/dark/plot_settings.svg</file>
+    <file alias="plot_split.svg">icons/dark/plot_split.svg</file>
     <file alias="polygon_reference_selection.svg">icons/dark/polygon_reference_selection.svg</file>
     <file alias="polygon_selection.svg">icons/dark/polygon_selection.svg</file>
     <file alias="rename.svg">icons/dark/rename.svg</file>

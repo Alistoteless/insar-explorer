@@ -8,6 +8,7 @@ from qgis.PyQt.QtWidgets import (
     QDoubleSpinBox,
     QFrame,
     QGridLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -22,7 +23,6 @@ from ...qt_compat import (
     SIZE_POLICY_FIXED,
 )
 from ...time_series.y_axis_range import resolve_manual_y_range
-from ..icon_theme import icon as themed_icon
 from ..spacing import SPACE_LG, SPACE_MD, SPACE_SM, SPACE_XL
 
 
@@ -35,14 +35,24 @@ class ManualYAxisPopup(QFrame):
     currentViewRequested = pyqtSignal(str)
 
     DOMAINS = (
-        ("series", "Main left", "Main L", "left_axis"),
-        ("right_series", "Main right", "Main R", "right_axis"),
-        ("residual", "Residual left", "Resid L", "residual_left"),
-        ("right_residual", "Residual right", "Resid R", "residual_right"),
+        "series",
+        "right_series",
+        "residual",
+        "right_residual",
     )
+    PLOT_TABS = (
+        ("Main", ("series", "right_series")),
+        ("Residual", ("residual", "right_residual")),
+    )
+    AXIS_SECTION_TITLES = {
+        "series": "Left axis",
+        "right_series": "Right axis",
+        "residual": "Left axis",
+        "right_residual": "Right axis",
+    }
 
     def __init__(self, parent=None):
-        """Create four always-visible tabs with per-domain Auto/numeric endpoints."""
+        """Create Main/Residual tabs containing the four independent axis editors."""
         super().__init__(parent, POPUP_WINDOW_FLAG)
         self.setObjectName("popup_manual_y_axis")
         self.setFrameShape(FRAME_SHAPE_STYLED_PANEL)
@@ -50,10 +60,10 @@ class ManualYAxisPopup(QFrame):
         self._loading = False
         self._editors = {}
         self._control_axes = {}
-        self._changed = {name: False for name, *_ in self.DOMAINS}
-        self._captured_exact = {name: None for name, *_ in self.DOMAINS}
-        self._data_bounds = {name: None for name, *_ in self.DOMAINS}
-        self._available = {name: False for name, *_ in self.DOMAINS}
+        self._changed = {name: False for name in self.DOMAINS}
+        self._captured_exact = {name: None for name in self.DOMAINS}
+        self._data_bounds = {name: None for name in self.DOMAINS}
+        self._available = {name: False for name in self.DOMAINS}
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(SPACE_XL, SPACE_LG, SPACE_XL, SPACE_LG)
@@ -64,11 +74,21 @@ class ManualYAxisPopup(QFrame):
         layout.addWidget(title)
 
         self.tabs = QTabWidget(self)
-        for name, title, short_title, icon_name in self.DOMAINS:
-            tab = self._createAxisTab(name)
-            self.tabs.addTab(tab, themed_icon(icon_name), short_title)
-            self.tabs.setTabToolTip(self.tabs.count() - 1, title)
-            tab.setAccessibleName(title)
+        self.tabs.setObjectName("tabs_manual_y_axis")
+        self._plot_pages = {}
+        self._axis_sections = {}
+        for plot_name, domains in self.PLOT_TABS:
+            page = QWidget(self.tabs)
+            page.setObjectName(f"page_manual_y_axis_{plot_name.lower()}")
+            page.setAccessibleName(f"{plot_name} Y axes")
+            page_layout = QVBoxLayout(page)
+            page_layout.setContentsMargins(SPACE_SM, SPACE_MD, SPACE_SM, SPACE_SM)
+            page_layout.setSpacing(SPACE_MD)
+            for domain in domains:
+                page_layout.addWidget(self._createAxisSection(domain, page))
+            page_layout.addStretch(1)
+            self._plot_pages[plot_name.lower()] = page
+            self.tabs.addTab(page, plot_name)
         layout.addWidget(self.tabs)
 
         actions = QHBoxLayout()
@@ -82,20 +102,21 @@ class ManualYAxisPopup(QFrame):
         self.cancel_button.clicked.connect(self.close)
         self.apply_button.clicked.connect(self._apply)
 
-    def _createAxisTab(self, axis_name):
-        """Create and register controls for one canonical Y domain."""
-        tab = QWidget(self)
-        outer = QVBoxLayout(tab)
-        outer.setContentsMargins(SPACE_SM, SPACE_MD, SPACE_SM, SPACE_SM)
+    def _createAxisSection(self, axis_name, parent):
+        """Create and register one canonical Y-domain editor section."""
+        section = QGroupBox(self.AXIS_SECTION_TITLES[axis_name], parent)
+        section.setObjectName(f"group_manual_y_axis_{axis_name}")
+        outer = QVBoxLayout(section)
+        outer.setContentsMargins(SPACE_MD, SPACE_MD, SPACE_MD, SPACE_SM)
 
         grid = QGridLayout()
-        grid.addWidget(QLabel("Auto", tab), 0, 1)
-        grid.addWidget(QLabel("Value", tab), 0, 2)
+        grid.addWidget(QLabel("Auto", section), 0, 1)
+        grid.addWidget(QLabel("Value", section), 0, 2)
         controls = {}
 
         for row, bound in enumerate(("upper", "lower"), 1):
-            auto = QCheckBox("", tab)
-            value = QDoubleSpinBox(tab)
+            auto = QCheckBox("", section)
+            value = QDoubleSpinBox(section)
             auto.setAccessibleName(
                 f"{axis_name} {bound} automatic Y-axis bound"
             )
@@ -111,30 +132,31 @@ class ManualYAxisPopup(QFrame):
             value.valueChanged.connect(self._editorChanged)
             self._control_axes[auto] = axis_name
             self._control_axes[value] = axis_name
-            grid.addWidget(QLabel(bound.title(), tab), row, 0)
+            grid.addWidget(QLabel(bound.title(), section), row, 0)
             grid.addWidget(auto, row, 1)
             grid.addWidget(value, row, 2)
             controls[bound] = (auto, value)
 
         outer.addLayout(grid)
-        button = QPushButton("Use current view", tab)
+        button = QPushButton("Use current view", section)
         button.clicked.connect(
             lambda _checked=False, name=axis_name: self.currentViewRequested.emit(name)
         )
         outer.addWidget(button)
         controls["use_current_view"] = button
         self._editors[axis_name] = controls
-        return tab
+        self._axis_sections[axis_name] = section
+        return section
 
     def openForDomains(self, manuals, data_bounds, availability):
         """Load drafts for all domains while preserving inactive stored values."""
         self._loading = True
         self._available = dict(availability)
-        self._changed = {name: False for name, *_ in self.DOMAINS}
-        self._captured_exact = {name: None for name, *_ in self.DOMAINS}
+        self._changed = {name: False for name in self.DOMAINS}
+        self._captured_exact = {name: None for name in self.DOMAINS}
         self._data_bounds = dict(data_bounds)
 
-        for index, (name, _title, _short, _icon) in enumerate(self.DOMAINS):
+        for name in self.DOMAINS:
             manual = manuals[name]
             bounds = data_bounds.get(name) or (0.0, 1.0)
             for bound_name, active, retained, seeded in (
@@ -147,7 +169,6 @@ class ManualYAxisPopup(QFrame):
                 )
                 auto.setChecked(active is None)
             self._setDomainEnabled(name, bool(availability.get(name, False)))
-            self.tabs.setTabEnabled(index, True)
 
         self._loading = False
         self._updateState()
@@ -217,12 +238,12 @@ class ManualYAxisPopup(QFrame):
 
     def _updateState(self):
         """Refresh value-editor enablement and Apply validity."""
-        for name, *_ in self.DOMAINS:
+        for name in self.DOMAINS:
             for bound in ("lower", "upper"):
                 auto, value = self._editors[name][bound]
                 value.setEnabled(auto.isEnabled() and not auto.isChecked())
         self.apply_button.setEnabled(
-            all(self._isValid(name) for name, *_ in self.DOMAINS)
+            all(self._isValid(name) for name in self.DOMAINS)
         )
 
     def _editorChanged(self, *_args):
@@ -245,7 +266,7 @@ class ManualYAxisPopup(QFrame):
             return
 
         payload = {}
-        for name, *_ in self.DOMAINS:
+        for name in self.DOMAINS:
             payload[name] = {
                 "bounds": self.bounds(name),
                 "retained": self.retainedBounds(name),

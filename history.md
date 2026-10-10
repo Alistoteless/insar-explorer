@@ -1,5 +1,17 @@
 ### History
 
+
+v2.13.0
+
+- Added an independent plot-level Residual control.
+- Residuals now match their source time-series style by default.
+- Added optional per-series Replica rendering in the residual subplot.
+- Added optional automatic distinct colors for new time series.
+- Added a marker-color identity strip to the time-series selection list.
+- Reorganized the Time Series Appearance popup into tabs.
+- Reorganized manual Y-range controls into Main and Residual tabs.
+- Refined the Time Series toolbar grouping and split-button layout.
+
 v2.12.0
 
 - Added per-series Left/Right Y-axis assignment with Left/Right axis icons in the Selections list.

@@ -169,7 +169,7 @@ class TimeSeriesStylePopup(QWidget):
         self.randomize_button = QPushButton(tab)
         self.randomize_button.setIcon(themed_icon("plot_random_color"))
         configure_compact_command_button(self.randomize_button)
-        self.randomize_button.setToolTip("Randomize marker and line color")
+        self.randomize_button.setToolTip("Randomize the Series and Ensemble identity color")
         actions_layout = QHBoxLayout()
         actions_layout.setContentsMargins(0, 0, 0, 0)
         actions_layout.addWidget(self.randomize_button)
