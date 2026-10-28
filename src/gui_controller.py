@@ -2854,7 +2854,7 @@ class GuiController(QObject):
         return f"{value:.2g}"
 
     def _handleTimeSeriesFitSuccess(self, model_id, statistics, *, seasonal=False):
-        """Report transient quality metrics for one fresh successful fit."""
+        """Report transient quality metrics and model velocity for one successful fit."""
         label = {
             "poly-1": "Linear",
             "poly-2": "Quadratic",
@@ -2866,17 +2866,36 @@ class GuiController(QObject):
             "n/a" if statistics.r_squared is None else f"{statistics.r_squared:.3f}"
         )
         seasonal_suffix = " + seasonal" if seasonal else ""
+        vel_val = getattr(statistics, "velocity", None)
+        vel_prefix = (
+            f"Vel: {vel_val:+.2f} mm/yr · "
+            if vel_val is not None and math.isfinite(vel_val)
+            else ""
+        )
         message = (
+            f"{vel_prefix}"
             f"R² {r_squared} · "
             f"RMSE {self._formatFitRmse(statistics.rmse)} mm — "
             f"{label}{seasonal_suffix} fit"
         )
         self._last_fit_statistics_message = message
-        self.msg_signal.emit(message, STATUS_INFO, 6000)
+        toolbar = getattr(self.ui, "time_series_toolbar", None)
+        if toolbar is not None and hasattr(toolbar, "setFitVelocityReadout"):
+            if vel_val is not None and math.isfinite(vel_val):
+                toolbar.setFitVelocityReadout(
+                    f"Vel: {vel_val:+.2f} mm/yr",
+                    tooltip=message,
+                )
+            else:
+                toolbar.setFitVelocityReadout("")
+        self.msg_signal.emit(message, STATUS_INFO, 8000)
 
     def _handleTimeSeriesFitFailure(self, error, *, seasonal=False):
         """Show a non-modal fitting failure message without retaining stale statistics."""
         self._last_fit_statistics_message = None
+        toolbar = getattr(self.ui, "time_series_toolbar", None)
+        if toolbar is not None and hasattr(toolbar, "setFitVelocityReadout"):
+            toolbar.setFitVelocityReadout("")
         label = {
             "exp": "Exponential",
             "log": "Logarithmic",
@@ -2937,6 +2956,25 @@ class GuiController(QObject):
         self._replica_show_in_residual_view = replica.show_in_residual
         self._syncTimeSeriesFitControls()
         self._syncTimeSeriesReplicaControls()
+        self._syncActiveFitVelocityReadout(record)
+
+    def _syncActiveFitVelocityReadout(self, record=None):
+        """Synchronize the toolbar velocity readout with the active time-series record."""
+        toolbar = getattr(self.ui, "time_series_toolbar", None)
+        if toolbar is None or not hasattr(toolbar, "setFitVelocityReadout"):
+            return
+        plotter = self.choose_point_click_handler.plot_ts
+        if record is None:
+            record = plotter.editable_time_series_record()
+        if record is None or not record.analysis.fit.enabled:
+            toolbar.setFitVelocityReadout("")
+            return
+        graphics = plotter._graphics_for_series(record)
+        vel_val = getattr(graphics, "fit_velocity", None) if graphics is not None else None
+        if vel_val is not None and math.isfinite(vel_val):
+            toolbar.setFitVelocityReadout(f"Vel: {vel_val:+.2f} mm/yr")
+        else:
+            toolbar.setFitVelocityReadout("")
 
     def _applyTimeSeriesFitState(
         self, refresh=True, *, report_statistics: bool = False,
@@ -4450,6 +4488,7 @@ class GuiController(QObject):
         toolbar.plot_export_button.setPrimaryEnabled(has_plot)
         toolbar.setRangeControlsEnabled(plotter.hasPlottedTimeSeriesData())
         self._syncTimeSeriesYAxisAssignmentControl()
+        self._syncActiveFitVelocityReadout()
 
     def discardPendingTimeSeries(self):
         """Discard only the pending preview and preserve the active reference."""
